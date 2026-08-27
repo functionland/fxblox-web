@@ -82,4 +82,12 @@ export async function gotoPaired(page: Page, path: string): Promise<void> {
   await page.goto('/robots.txt');
   await seedKv(page);
   await page.goto(path);
+  // Wait for first paint ONCE, here. The app gates rendering on IndexedDB hydration and then fetches the shell
+  // chunk, so a cold start costs real time; under load that has exceeded a per-assertion timeout and failed a
+  // test whose subject was not startup at all. Any of these markers means the app is up: either shell (paired,
+  // or redirected into setup) or a screen root (`/gallery` and anything rendering outside a shell).
+  await page
+    .locator('[data-testid="app-shell"], [data-testid="setup-shell"], [data-screen]')
+    .first()
+    .waitFor({ state: 'attached', timeout: 30_000 });
 }

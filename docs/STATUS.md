@@ -20,11 +20,11 @@ Per-workstream detail lives in the sibling `STATUS-*.md` files; this is the top-
 
 | Check | Result |
 |---|---|
-| Unit tests | **876 passing** — app 757 (88 files), fula-web-client 62 (9), fx-ui 57 (11); app suite run twice, identical |
+| Unit tests | **878 passing in one `npm test --workspaces` run** — app 759 (89 files), fula-web-client 62 (9), fx-ui 57 (11) |
 | Typecheck | clean (app `tsconfig` + `tsconfig.node` + `e2e/tsconfig`, both packages) |
 | Lint | clean across the workspace |
-| Production build | OK — 23.8 s, 125 precache entries, no circular chunks; eager JS ≈ 321 KB (AppKit/ethers/libp2p stay lazy) |
-| E2E (Playwright, Chromium) | **86/86, twice in a row, 0 flaky** on `desktop-chromium` (1440×900) and `android-chrome` (Pixel 7), against `tools/fake-blox` |
+| Production build | OK — 24 s, 125 precache entries, no circular chunks; eager JS ≈ 321 KB (AppKit/ethers/libp2p stay lazy) |
+| E2E (Playwright, Chromium) | **86/86 on three consecutive runs, 0 flaky** on `desktop-chromium` (1440×900) and `android-chrome` (Pixel 7), against `tools/fake-blox` |
 
 **Not verified anywhere:** real hardware and real wallets. Web Bluetooth against the actual Blox GATT server, Chrome's Local Network Access prompt on the hotspot, MetaMask/WalletConnect signing, the libp2p path against the live relay, and the FxFiles round-trip are all still fake-backed. Those are the P0 spike gates (b)–(e) and the release checklist in the plan.
 
@@ -34,7 +34,8 @@ Per-workstream detail lives in the sibling `STATUS-*.md` files; this is the top-
    The first fix added a bail-out comparison to the effect. An advisor review caught that this **kept a stale `route` closure** whenever the comparison judged the list unchanged, so the hook now derives the list during render with `useMemo` and holds no task state at all — the loop is impossible by construction and the callbacks are always current. Both properties have regression tests.
 2. **`/settings/chain` and `/settings/pools*` threw on direct load** — they call the AppKit hooks at their top level, but AppKit is intentionally excluded from the eager bundle. They now mount behind `WalletGate` via `lazyWalletScreen`, and `PoolsLayout` gates the master list it mounts itself. Because the wallet chunk is ~3.8 MB, the route renders the normal `SettingsScreen` chrome (title, back button, `data-screen`) immediately and gates only the content, instead of showing a blank page until the chunk lands — which is also what made these three routes fail intermittently under load.
 3. **Three pre-existing test defects** (present at `a1b8570`, verified by stashing the fixes and re-running). `ConnectToBlox` drove `lanFetch` by call order, so the readiness poll and the explicit hotspot check raced for the same queued rejection; worse, the test asserted an error card that the screen deliberately clears the moment the background poll reports reachable. It now routes the mock by URL and gates readiness explicitly. A second test asserted the session-wide BLE write log equalled exactly one command while the next screen was already fetching properties over the same session. Both now pass 5/5 in isolation and the app suite runs identically twice.
-4. **`NOT_INITIALIZED` was logged as a console error.** The protocol modules are verbatim ports of react-native-fula and log every rejection at `error`, but a screen routinely queries before `newClient()` finishes. The client's logger now treats `NOT_INITIALIZED` / `CLIENT_CLOSED` as caller preconditions and keeps them out of `console.error` while still recording them in the diagnostics ring buffer at their original level.
+4. **The E2E suite had no startup margin.** Under load (a build plus another full run back to back) `/blox` failed waiting for the app shell — the app gates rendering on IndexedDB hydration and then fetches the shell chunk, and a per-assertion timeout was racing that. `gotoPaired` now waits once for first paint, so no individual assertion carries the cold-start cost. Three consecutive full runs are clean under the same load.
+5. **`NOT_INITIALIZED` was logged as a console error.** The protocol modules are verbatim ports of react-native-fula and log every rejection at `error`, but a screen routinely queries before `newClient()` finishes. The client's logger now treats `NOT_INITIALIZED` / `CLIENT_CLOSED` as caller preconditions and keeps them out of `console.error` while still recording them in the diagnostics ring buffer at their original level.
 
 ## Blocked / needs a person
 
@@ -45,6 +46,9 @@ Per-workstream detail lives in the sibling `STATUS-*.md` files; this is the top-
 
 ## Known gaps / follow-ups
 
+- **Focus is dropped when the wallet chunk resolves.** The gate's chrome and the screen's own chrome are different elements in the same slot, so React unmounts one and mounts the other; a keyboard user who tabbed to Back while the chunk loaded lands back on `<body>`, and a screen reader may re-announce the heading. Removing it means hoisting the chrome out of the four screens into the route, which would cost their dynamic titles (`PoolDetails` titles on the loaded pool's name) — not worth it for a sub-second window, but it is a real a11y wart.
+- `refreshTasks` on the Blox dashboard now only shows a spinner for a second: the task list re-derives itself from its inputs, so there is nothing to recompute. That matches mobile (its refresh also only re-read already-derived values), but the button is effectively decorative.
+- Several async tests still assert on `mock.calls[0]`, which is the pattern that made the two `ConnectToBlox` tests racy. Worth a sweep before CI runs on shared runners.
 - `PoolsLayout` renders a `WalletGate` around the master list it mounts itself while the child route is gated too. The gate is a module-level singleton so only one `initAppKit()` runs, but the nesting is redundant and worth collapsing.
 - `WalletGate` keeps its state in module-level variables rather than a context, which is why tests need `_resetWalletGateForTests`. A context at the root would be less fragile.
 - `ConnectToBlox` probes availability with a `properties` command and the next screen immediately fetches `properties` again over the same BLE session — one redundant round-trip per pairing.

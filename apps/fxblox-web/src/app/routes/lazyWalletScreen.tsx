@@ -10,16 +10,20 @@
  *
  * The wallet chunk is large (~3.8 MB raw), so on a direct load it can take a noticeable moment. Gating the
  * bare screen would leave the whole page blank until it arrives — no title, no back button, and on a chunk
- * failure no way out but the browser's back button. Instead the route renders the standard `SettingsScreen`
- * chrome immediately and puts only the gate in the content area; once the wallet is ready the screen takes
- * over and supplies its own (identical) chrome. That also keeps `data-screen` present for the whole load, so
- * the route stays identifiable to the shell and to tests.
+ * failure no way out but the browser's back button. So the gate's PENDING states (loading and error) are
+ * wrapped in the standard `SettingsScreen` chrome through `wrapPending`; once ready the screen renders and
+ * supplies its own (identical) chrome. `data-screen` is therefore present for the whole load, so the route
+ * stays identifiable to the shell and to tests.
+ *
+ * The gate stays mounted in every state rather than being swapped out when ready: it owns the
+ * `setAppKitTheme` effect that mirrors the app's colour mode into AppKit, and none of these four screens
+ * mount a gate of their own, so unmounting it would silently stop theme sync on exactly these routes.
  */
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { RouteObject } from 'react-router';
 import { useIsWide } from '@functionland/fx-ui';
-import { WalletGate, useWalletReady } from '@/components/main/WalletGate';
+import { WalletGate } from '@/components/main/WalletGate';
 import { SettingsScreen } from '@/components/settings/SettingsScreen';
 import type { ScreenModule } from './lazyScreen';
 
@@ -36,13 +40,14 @@ export interface WalletScreenChrome {
   backOnDesktopWhenNarrow?: boolean;
 }
 
-function WalletScreenFallback({
+function WalletScreenChromeShell({
   screen,
   titleKey,
   backTo,
   wide,
   backOnDesktopWhenNarrow,
-}: WalletScreenChrome) {
+  children,
+}: WalletScreenChrome & { children: ReactNode }) {
   const { t } = useTranslation();
   const isWide = useIsWide();
   return (
@@ -53,8 +58,7 @@ function WalletScreenFallback({
       wide={wide}
       backOnDesktop={backOnDesktopWhenNarrow ? !isWide : false}
     >
-      {/* Children are unreachable: the wrapper swaps in the real screen as soon as the gate reports ready. */}
-      <WalletGate testID="wallet-screen-gate">{null}</WalletGate>
+      {children}
     </SettingsScreen>
   );
 }
@@ -67,11 +71,16 @@ export const lazyWalletScreen =
   async () => {
     const mod = await load();
     const Screen = mod.default;
-    const Gated: ComponentType = () => {
-      const status = useWalletReady();
-      if (status === 'ready') return <Screen />;
-      return <WalletScreenFallback {...chrome} />;
-    };
+    const Gated: ComponentType = () => (
+      <WalletGate
+        testID="wallet-screen-gate"
+        wrapPending={(pending) => (
+          <WalletScreenChromeShell {...chrome}>{pending}</WalletScreenChromeShell>
+        )}
+      >
+        <Screen />
+      </WalletGate>
+    );
     Gated.displayName = `WalletGated(${Screen.displayName ?? Screen.name ?? 'Screen'})`;
     return { Component: Gated };
   };

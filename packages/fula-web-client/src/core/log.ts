@@ -3,7 +3,9 @@
  *
  * - Entries are kept in memory (last `MAX_ENTRIES`) so the app's debug banner can copy them.
  * - In browsers the live buffer is exposed as `globalThis.__fula.logs` (plan §WS3 "Observability").
- * - Nothing is mirrored to the console unless `enableDebug(true)` was called (errors always are).
+ * - Nothing is mirrored to the console unless `enableDebug(true)` was called, except errors — and even those
+ *   are held back when they are caller preconditions (see `PRECONDITION_CODES`), so a silent
+ *   `NOT_INITIALIZED` is deliberate, not a lost log: the ring buffer still holds it at its original level.
  * - Never log identities / secret keys — callers pass peer ids only.
  */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';

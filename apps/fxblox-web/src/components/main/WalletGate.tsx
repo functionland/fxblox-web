@@ -83,12 +83,25 @@ export interface WalletGateProps {
   children: ReactNode;
   /** Rendered while the chunk loads (default: a spinner row). */
   fallback?: ReactNode;
+  /**
+   * Wraps the loading AND error states — not the children. A whole-screen gate uses this to keep its page
+   * chrome (title, back button) on screen while the ~3.8 MB wallet chunk loads and if it fails, instead of
+   * blanking the route. It wraps only the pending states so the screen still supplies its own chrome once
+   * ready, and so the gate itself stays mounted throughout (its theme-sync effect must keep running).
+   */
+  wrapPending?: (node: ReactNode) => ReactNode;
   /** Render nothing at all until ready (banners / notifications that should not flash a spinner). */
   silent?: boolean;
   testID?: string;
 }
 
-export function WalletGate({ children, fallback, silent = false, testID }: WalletGateProps) {
+export function WalletGate({
+  children,
+  fallback,
+  wrapPending,
+  silent = false,
+  testID,
+}: WalletGateProps) {
   const { t } = useTranslation();
   const mode = useColorMode();
   const status = useWalletReady();
@@ -111,10 +124,12 @@ export function WalletGate({ children, fallback, silent = false, testID }: Walle
     void ensureWalletReady(mode).catch(() => undefined);
   }, [mode]);
 
+  const wrap = (node: ReactNode) => <>{wrapPending ? wrapPending(node) : node}</>;
+
   if (status === 'ready') return <>{children}</>;
   if (status === 'error') {
     if (silent) return null;
-    return (
+    return wrap(
       <FxBox
         role="alert"
         flexDirection="row"
@@ -136,8 +151,8 @@ export function WalletGate({ children, fallback, silent = false, testID }: Walle
     );
   }
   if (silent) return null;
-  if (fallback !== undefined) return <>{fallback}</>;
-  return (
+  if (fallback !== undefined) return wrap(fallback);
+  return wrap(
     <FxBox
       alignItems="center"
       justifyContent="center"

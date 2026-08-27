@@ -22,13 +22,6 @@ export interface Task {
   isPending?: boolean;
 }
 
-export interface TasksState {
-  tasks: Task[];
-  completedTasks: (string | number)[];
-  loading: boolean;
-  refreshing: boolean;
-}
-
 export interface UseTasksLogicOptions {
   navigateToPools?: () => void;
 }
