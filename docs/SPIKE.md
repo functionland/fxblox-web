@@ -8,7 +8,7 @@
 | (c) Circuit to the real Blox + `/x/fula-ping` | pending | |
 | (d) Signed `blox-free-space` | pending | |
 | (e) Relay limits | pending | |
-| (f) Build sanity | pending | |
+| (f) Build sanity | **PASS locally (2026-08-27)** — CI blocked | `vite build` + `postbuild` OK for both base paths; typecheck + lint + Vitest green. GitHub Actions refuse to start jobs ("account is locked due to a billing issue" on the functionland org) — CI/Pages deploy pending org billing |
 | (g) Android Chrome LNA | pending | |
 | (h) Web Bluetooth 512 B write | pending | |
 | (i) `account-fund` body form | **PASS** | `go-fula/blockchain/utils.go`: `BigInt.MarshalJSON` returns `b.String()` — a bare decimal number, no quotes → body is `{"amount":1000000000000000000,"to":"<account>"}` (`AccountFundRequest{Amount BigInt \`json:"amount"\`; To string \`json:"to"\`}`) |
