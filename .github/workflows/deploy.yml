@@ -27,7 +27,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       # Set the repo variable PAGES_CNAME=blox.fx.land once the DNS CNAME exists; until then the site is
-      # served from https://functionland.github.io/fxblox-web/ and needs the project base path.
+      # served from https://docs.fx.land/fxblox-web/ (org Pages custom domain) and needs the project base path.
       - run: npm run build -w apps/fxblox-web
         env:
           GITHUB_SHA: ${{ github.sha }}

@@ -1,7 +1,8 @@
 // CORS + Origin-guard behaviour identical to what firmware PR-A / PR-B add on the real Blox.
-// Allow-list: https://blox.fx.land, https://functionland.github.io, http://localhost:*, http://127.0.0.1:*
+// Allow-list: https://blox.fx.land, https://docs.fx.land (org Pages custom domain → staging),
+// https://functionland.github.io, http://localhost:*, http://127.0.0.1:*
 
-export const ALLOWED_ORIGINS = ['https://blox.fx.land', 'https://functionland.github.io'];
+export const ALLOWED_ORIGINS = ['https://blox.fx.land', 'https://docs.fx.land', 'https://functionland.github.io'];
 const LOCAL_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 export function originAllowed(origin) {

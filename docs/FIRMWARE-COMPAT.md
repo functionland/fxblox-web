@@ -2,6 +2,11 @@
 
 The web app feature-detects each capability and shows an "update your Blox / relay" banner when it is missing.
 
+CORS allow-list baked into the firmware PRs: `https://blox.fx.land` (production), `https://docs.fx.land` (the
+functionland org's Pages custom domain — project pages such as the staging deploy at
+`https://docs.fx.land/fxblox-web/` carry this origin), `https://functionland.github.io`, and `http://localhost:*` /
+`http://127.0.0.1:*` for development.
+
 | Capability (web) | Needs | Detect | Status |
 |---|---|---|---|
 | Hotspot setup over HTTP (`http://10.42.0.1:3500`) | **PR-A** go-fula `wap/pkg/server/server.go`: CORS + OPTIONS + `Origin` guard | `OPTIONS /properties` → 204 with `Access-Control-Allow-Origin` | PR pending |
