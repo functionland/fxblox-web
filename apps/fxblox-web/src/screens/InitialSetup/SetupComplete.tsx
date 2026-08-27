@@ -106,9 +106,25 @@ export default function SetupComplete() {
   const latest = useRef({ fulaReadyForCurrent, internetStatus, checkBloxConnection, logger });
   latest.current = { fulaReadyForCurrent, internetStatus, checkBloxConnection, logger };
 
+  /**
+   * This screen fires network probes (internet reachability, `HEAD /properties`) that outlive a fast
+   * navigation away — the user can press Home or Reconnect while one is in flight. Writing state after that
+   * is at best a wasted render and at worst a crash: under CI timings a probe settled after the test
+   * environment had been torn down and React's `dispatchSetState` threw `window is not defined`, failing the
+   * run even though every test passed. Every post-await state write below is guarded by this.
+   */
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
   const checkInternetStatus = useCallback(async () => {
     try {
       const online = await isOnline();
+      if (!alive.current) return;
       if (online) {
         setInternetStatus('CONNECTED');
         setInitialWaitForInternet(false);
@@ -118,6 +134,7 @@ export default function SetupComplete() {
       }
       latest.current.logger.log('checkInternetStatus:network', { online });
     } catch (error) {
+      if (!alive.current) return;
       setInternetStatus('NOTCONNECTED');
       setSetupStatus('NOTCOMPLETED');
       console.error('checkInternetConnectivity', error);
@@ -128,8 +145,9 @@ export default function SetupComplete() {
   const checkHttpHeaderStatus = useCallback(async () => {
     try {
       await lanFetch(`${API_URL}/properties`, { method: 'HEAD', timeoutMs: 5000 });
-      setIsHeaderStatus200(true);
+      if (alive.current) setIsHeaderStatus200(true);
     } catch (error) {
+      if (!alive.current) return;
       console.error('Failed to fetch properties', error);
       setIsHeaderStatus200(false);
     }
@@ -142,11 +160,13 @@ export default function SetupComplete() {
         try {
           if (latest.current.fulaReadyForCurrent && latest.current.internetStatus === 'CONNECTED') {
             const result = await latest.current.checkBloxConnection();
+            if (!alive.current) return;
             latest.current.logger.log('handleTryReachBlox:checkBloxConnection', result);
           } else {
             setSetupStatus('NOTCOMPLETED');
           }
         } catch (error) {
+          if (!alive.current) return;
           latest.current.logger.logError('handleTryReachBlox', error);
         }
       })();
@@ -275,8 +295,10 @@ export default function SetupComplete() {
     try {
       // Attempt to reach the hotspot API; if it answers, go back
       await lanFetch(`${API_URL}/properties`, { timeoutMs: 5000 });
+      if (!alive.current) return;
       back(paths.setup.connectWifi);
     } catch {
+      if (!alive.current) return;
       queueToast({ type: 'error', message: t('setupComplete.notConnectedToHotspot') });
     }
   };
