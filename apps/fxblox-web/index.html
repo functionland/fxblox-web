@@ -6,17 +6,12 @@
     <meta name="theme-color" content="#212529" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://raw.githubusercontent.com https://ipfs.cloud.fx.land; font-src 'self' data:; connect-src 'self' http://10.42.0.1:3500 http://*:3500 http://*:8083 http://localhost:* http://127.0.0.1:* https://discovery.fula.network https://delegated-ipfs.dev https://pools.fx.land https://ai-training.fx.land https://raw.githubusercontent.com https://www.google.com https://mainnet.skalenodes.com https://base-rpc.publicnode.com https://1rpc.io https://mainnet.base.org https://relay.dev.fx.land:4001 https://relay.fula.network:4001 https://*:4001; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://raw.githubusercontent.com https://ipfs.cloud.fx.land https://api.web3modal.org https://explorer-api.walletconnect.com https://imagedelivery.net; font-src 'self' data: https://fonts.reown.com; connect-src 'self' http://10.42.0.1:3500 http://*:3500 http://*:8083 http://localhost:* http://127.0.0.1:* https://discovery.fula.network https://delegated-ipfs.dev https://pools.fx.land https://ai-training.fx.land https://raw.githubusercontent.com https://www.google.com https://mainnet.skalenodes.com https://base-rpc.publicnode.com https://1rpc.io https://mainnet.base.org https://relay.dev.fx.land:4001 https://relay.fula.network:4001 https://*:4001 wss://relay.walletconnect.com wss://relay.walletconnect.org https://rpc.walletconnect.com https://rpc.walletconnect.org https://api.web3modal.org https://verify.walletconnect.com https://verify.walletconnect.org https://explorer-api.walletconnect.com https://pulse.walletconnect.org https://keys.walletconnect.org https://notify.walletconnect.org https://echo.walletconnect.org; frame-src https://verify.walletconnect.com https://verify.walletconnect.org; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
     />
     <title>FxBlox</title>
-    <script>
-      // Theme bootstrap before React mounts (mobile default is dark).
-      try {
-        var raw = localStorage.getItem('fx.theme');
-        var mode = raw === 'light' || raw === 'dark' ? raw : 'dark';
-        document.documentElement.dataset.theme = mode;
-      } catch (e) {}
-    </script>
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <!-- Theme bootstrap is a bundled module (src/themeBoot.ts): the CSP forbids inline scripts. -->
+    <script type="module" src="/src/themeBoot.ts"></script>
   </head>
   <body>
     <div id="root"></div>

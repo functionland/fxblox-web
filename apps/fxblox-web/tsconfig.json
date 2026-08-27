@@ -3,10 +3,11 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "noEmit": true,
-    "types": ["vite/client"],
+    "types": ["vite/client", "web-bluetooth"],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@functionland/fula-sec-web": ["./src/types/fula-sec-web"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "vitest.config.ts"]
 }
