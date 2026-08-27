@@ -1,0 +1,37 @@
+{
+  "settings": {
+    "title": "Settings",
+    "menu": {
+      "bloxStatusMonitor": "Blox Status Monitor",
+      "mode": "Mode",
+      "modeDetail": "Current: {{mode}} mode",
+      "chainSelection": "Chain Selection",
+      "chainDetail": "Current: {{chain}}",
+      "pools": "Pools",
+      "bloxDiscovery": "Blox discovery",
+      "bluetoothCommands": "Bluetooth commands",
+      "bloxLogs": "Blox logs",
+      "autoPinPairing": "Auto-Pin Pairing",
+      "connectedDApps": "Connected dApps",
+      "about": "About",
+      "componentGallery": "Component Gallery",
+      "interval": {
+        "0": "Disabled",
+        "480": "Every 8 hours",
+        "1440": "Every 24 hours"
+      },
+      "modeNames": {
+        "light": "Light",
+        "dark": "Dark"
+      }
+    },
+    "logout": {
+      "button": "Log out",
+      "title": "Log out?",
+      "message": "This removes your identity, linked wallet and Blox list from this browser. You can set up again with the same password and wallet.",
+      "confirm": "Log out",
+      "cancel": "Cancel",
+      "failed": "Log out failed"
+    }
+  }
+}

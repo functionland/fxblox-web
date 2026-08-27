@@ -1,11 +1,15 @@
 export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /** Poll `predicate` until true (or throw after `timeoutMs`). Real timers only. */
-export async function waitFor(predicate: () => boolean, opts: { timeoutMs?: number; intervalMs?: number; label?: string } = {}): Promise<void> {
+export async function waitFor(
+  predicate: () => boolean,
+  opts: { timeoutMs?: number; intervalMs?: number; label?: string } = {},
+): Promise<void> {
   const { timeoutMs = 5000, intervalMs = 10, label = 'condition' } = opts;
   const start = Date.now();
   while (!predicate()) {
-    if (Date.now() - start > timeoutMs) throw new Error(`waitFor: ${label} not met within ${timeoutMs} ms`);
+    if (Date.now() - start > timeoutMs)
+      throw new Error(`waitFor: ${label} not met within ${timeoutMs} ms`);
     await sleep(intervalMs);
   }
 }

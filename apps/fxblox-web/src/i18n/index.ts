@@ -1,23 +1,18 @@
 /**
- * i18n — same JSON resources as mobile (`en/translation.json`, `en/tasks.json`, `zh/translation.json`).
+ * i18n — the mobile JSON resources (`en/translation.json`, `en/tasks.json`, `zh/translation.json`) merged with
+ * the web route-group files (`shell`, `setup`, `main`, `settings`) in `./resources.ts`.
  * Persisted choice lives in `localStorage.userLanguage`; first run uses `navigator.language`.
  */
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { resources } from './resources';
 
-import enTranslation from './locales/en/translation.json';
-import zhTranslation from './locales/zh/translation.json';
-import enTasks from './locales/en/tasks.json';
+export { resources } from './resources';
 
 export const FALLBACK_LANGUAGE = 'en';
 export const SUPPORTED_LANGUAGES = ['en', 'zh'] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 const LANGUAGE_KEY = 'userLanguage';
-
-export const resources = {
-  en: { translation: enTranslation, tasks: enTasks },
-  zh: { translation: zhTranslation, tasks: enTasks },
-} as const;
 
 function isSupported(lng: string | null | undefined): lng is SupportedLanguage {
   return !!lng && (SUPPORTED_LANGUAGES as readonly string[]).includes(lng);

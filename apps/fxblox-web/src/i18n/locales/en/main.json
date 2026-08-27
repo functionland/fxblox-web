@@ -1,0 +1,13 @@
+{
+  "main": {
+    "screens": {
+      "blox": "Blox",
+      "bloxManager": "Blox Manager",
+      "users": "Users",
+      "plugins": "Plugins",
+      "plugin": "Plugin",
+      "bloxAi": "Blox AI",
+      "devices": "Devices"
+    }
+  }
+}

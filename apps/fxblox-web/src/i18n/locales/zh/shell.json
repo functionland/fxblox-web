@@ -1,0 +1,92 @@
+{
+  "shell": {
+    "appName": "FxBlox",
+    "loading": "加载中…",
+    "skipToContent": "跳到主要内容",
+    "comingSoon": "{{name}} — 即将推出",
+    "comingSoonHint": "此页面正在从 FxBlox 手机应用移植。",
+    "params": "路由参数",
+    "back": "返回",
+    "nav": {
+      "primary": "主导航",
+      "blox": "Blox",
+      "users": "用户",
+      "plugins": "插件",
+      "bloxAi": "Blox AI",
+      "devices": "设备",
+      "settings": "设置"
+    },
+    "topBar": {
+      "addBlox": "添加 Blox",
+      "manageBloxs": "管理 Blox",
+      "profile": "个人资料"
+    },
+    "sidebar": {
+      "manage": "管理",
+      "switchToLight": "切换到浅色模式",
+      "switchToDark": "切换到深色模式",
+      "preferences": "偏好设置"
+    },
+    "language": {
+      "label": "语言",
+      "en": "English",
+      "zh": "中文"
+    },
+    "setup": {
+      "title": "设置您的 Blox",
+      "backToApp": "返回应用",
+      "progress": "设置进度",
+      "deepLinkBanner": "设置完成后将返回 FxFiles 配对。",
+      "continue": "继续",
+      "back": "返回",
+      "home": "主页"
+    },
+    "settings": {
+      "title": "设置",
+      "select": "选择一个设置项",
+      "selectHint": "从列表中选择一项以查看详情。"
+    },
+    "pools": {
+      "title": "矿池",
+      "select": "选择一个矿池",
+      "selectHint": "从列表中选择一个矿池以查看详情。"
+    },
+    "profile": {
+      "title": "个人资料",
+      "comingSoon": "钱包详情、账户和通知将显示在此处。"
+    },
+    "notFound": {
+      "title": "页面不存在",
+      "description": "您访问的页面不存在或已被移动。",
+      "home": "返回主页"
+    },
+    "error": {
+      "title": "出了点问题",
+      "description": "发生了意外错误，请重试。",
+      "retry": "重试",
+      "reload": "重新加载",
+      "home": "返回主页"
+    },
+    "debug": {
+      "banner": "调试模式已启用 {{id}}",
+      "share": "分享您的调试 ID",
+      "copied": "调试 ID 已复制到剪贴板",
+      "shareFailed": "无法分享调试 ID"
+    },
+    "pwa": {
+      "updateTitle": "有新版本可用",
+      "updateMessage": "点击以重新加载并更新 FxBlox。",
+      "reload": "重新加载",
+      "offlineReady": "FxBlox 已可离线使用。"
+    },
+    "version": "应用版本 {{version}} #{{build}}",
+    "unsupported": {
+      "title": "FxBlox 需要 Chrome 或 Edge 浏览器",
+      "body": "在浏览器中管理 Blox 需要 Web Bluetooth、WebTransport 和 Chrome 的本地网络权限，当前浏览器不支持（{{reasons}}）。",
+      "hint": "请在桌面或 Android 上使用 Chrome / Edge，或使用 FxBlox 手机应用。"
+    },
+    "gallery": {
+      "title": "组件库"
+    }
+  }
+}

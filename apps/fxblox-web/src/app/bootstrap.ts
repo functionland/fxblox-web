@@ -28,12 +28,21 @@ export function bootstrapDataLayer(): Promise<BootstrapResult> {
     const stopTheme = startThemeSync();
     // Wait for the three gating stores (RootGate predicate) before anything reads them.
     await waitForHydration([useUserProfileStore, useBloxsStore, useSettingsStore]);
-    await useUserProfileStore.getState().loadAllCredentials().catch((e) => console.warn('[boot] loadAllCredentials failed', e));
+    await useUserProfileStore
+      .getState()
+      .loadAllCredentials()
+      .catch((e) => console.warn('[boot] loadAllCredentials failed', e));
     const persisted = await ensurePersistentStorage();
     const stopNet = installNetworkLogger();
     void refreshRelayCache();
     const stopMonitor = bloxStatusMonitor.start();
-    if (env.DEV) console.info('[boot] data layer ready', { supported, persisted, version: env.APP_VERSION, sha: env.GIT_SHA });
+    if (env.DEV)
+      console.info('[boot] data layer ready', {
+        supported,
+        persisted,
+        version: env.APP_VERSION,
+        sha: env.GIT_SHA,
+      });
     return {
       supported,
       persisted,

@@ -1,0 +1,13 @@
+{
+  "main": {
+    "screens": {
+      "blox": "Blox",
+      "bloxManager": "Blox 管理器",
+      "users": "用户",
+      "plugins": "插件",
+      "plugin": "插件",
+      "bloxAi": "Blox AI",
+      "devices": "设备"
+    }
+  }
+}

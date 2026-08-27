@@ -1,0 +1,16 @@
+{
+  "setup": {
+    "steps": {
+      "welcome": "Welcome",
+      "requirements": "Requirements",
+      "linkPassword": "Link password",
+      "connectToBlox": "Connect to Blox",
+      "connectToExistingBlox": "Connect to an existing Blox",
+      "setBloxAuthorizer": "Set Blox authorizer",
+      "connectToWifi": "Connect to Wi-Fi",
+      "checkConnection": "Check connection",
+      "setupComplete": "Setup complete",
+      "bluetoothCommands": "Bluetooth commands"
+    }
+  }
+}

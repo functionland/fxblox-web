@@ -1,0 +1,37 @@
+{
+  "settings": {
+    "title": "设置",
+    "menu": {
+      "bloxStatusMonitor": "Blox 状态监控",
+      "mode": "显示模式",
+      "modeDetail": "当前：{{mode}}模式",
+      "chainSelection": "链选择",
+      "chainDetail": "当前：{{chain}}",
+      "pools": "矿池",
+      "bloxDiscovery": "发现 Blox",
+      "bluetoothCommands": "蓝牙命令",
+      "bloxLogs": "Blox 日志",
+      "autoPinPairing": "自动固定配对",
+      "connectedDApps": "已连接的 dApp",
+      "about": "关于",
+      "componentGallery": "组件库",
+      "interval": {
+        "0": "已禁用",
+        "480": "每 8 小时",
+        "1440": "每 24 小时"
+      },
+      "modeNames": {
+        "light": "浅色",
+        "dark": "深色"
+      }
+    },
+    "logout": {
+      "button": "退出登录",
+      "title": "退出登录？",
+      "message": "这将从此浏览器中移除您的身份、已关联的钱包和 Blox 列表。您可以使用相同的密码和钱包重新设置。",
+      "confirm": "退出登录",
+      "cancel": "取消",
+      "failed": "退出登录失败"
+    }
+  }
+}

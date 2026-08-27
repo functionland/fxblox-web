@@ -10,7 +10,9 @@ export interface SseStreamController {
   error: (e?: unknown) => void;
 }
 
-export function sseResponse(init: { status?: number; headers?: Record<string, string> } = {}): SseStreamController {
+export function sseResponse(
+  init: { status?: number; headers?: Record<string, string> } = {},
+): SseStreamController {
   const encoder = new TextEncoder();
   let controller!: ReadableStreamDefaultController<Uint8Array>;
   const stream = new ReadableStream<Uint8Array>({
@@ -51,6 +53,10 @@ export function sseResponse(init: { status?: number; headers?: Record<string, st
 }
 
 /** A plain text/JSON `Response` (non-streaming). */
-export function textResponse(body: string, status = 200, headers: Record<string, string> = {}): Response {
+export function textResponse(
+  body: string,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(body, { status, headers });
 }

@@ -96,6 +96,19 @@ export default defineConfig({
         eagerModules = null;
       },
     },
+    {
+      // The CSP meta in index.html is `script-src 'self'` (no inline scripts). @vitejs/plugin-react injects an inline
+      // React Refresh preamble in DEV ONLY, which that policy blocks and takes the whole dev server down with
+      // "can't detect preamble". Relax script-src for the dev server; production HTML is untouched.
+      name: 'fxblox:dev-csp-inline-scripts',
+      transformIndexHtml: {
+        order: 'post',
+        handler(html, ctx) {
+          if (!ctx.server) return html;
+          return html.replace("script-src 'self' 'wasm-unsafe-eval'", "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'");
+        },
+      },
+    },
     react(),
     tailwindcss(),
     svgr(),

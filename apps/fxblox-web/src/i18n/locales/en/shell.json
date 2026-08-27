@@ -1,0 +1,92 @@
+{
+  "shell": {
+    "appName": "FxBlox",
+    "loading": "Loading…",
+    "skipToContent": "Skip to content",
+    "comingSoon": "{{name}} — coming soon",
+    "comingSoonHint": "This screen is being ported from the FxBlox mobile app.",
+    "params": "Route parameters",
+    "back": "Back",
+    "nav": {
+      "primary": "Primary",
+      "blox": "Blox",
+      "users": "Users",
+      "plugins": "Plugins",
+      "bloxAi": "Blox AI",
+      "devices": "Devices",
+      "settings": "Settings"
+    },
+    "topBar": {
+      "addBlox": "Add a Blox",
+      "manageBloxs": "Manage Bloxs",
+      "profile": "Profile"
+    },
+    "sidebar": {
+      "manage": "Manage",
+      "switchToLight": "Switch to light mode",
+      "switchToDark": "Switch to dark mode",
+      "preferences": "Preferences"
+    },
+    "language": {
+      "label": "Language",
+      "en": "English",
+      "zh": "中文"
+    },
+    "setup": {
+      "title": "Set up your Blox",
+      "backToApp": "Back to app",
+      "progress": "Setup progress",
+      "deepLinkBanner": "You'll return to FxFiles pairing after setup.",
+      "continue": "Continue",
+      "back": "Back",
+      "home": "Home"
+    },
+    "settings": {
+      "title": "Settings",
+      "select": "Choose a setting",
+      "selectHint": "Pick an item from the list to see its details."
+    },
+    "pools": {
+      "title": "Pools",
+      "select": "Select a pool",
+      "selectHint": "Pick a pool from the list to see its details."
+    },
+    "profile": {
+      "title": "Profile",
+      "comingSoon": "Wallet details, account and notifications will appear here."
+    },
+    "notFound": {
+      "title": "Page not found",
+      "description": "The page you are looking for doesn't exist or was moved.",
+      "home": "Go home"
+    },
+    "error": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. Please try again.",
+      "retry": "Try again",
+      "reload": "Reload",
+      "home": "Go home"
+    },
+    "debug": {
+      "banner": "Debug mode is enabled {{id}}",
+      "share": "Share your debug Id",
+      "copied": "Debug id copied to the clipboard",
+      "shareFailed": "Could not share the debug id"
+    },
+    "pwa": {
+      "updateTitle": "New version available",
+      "updateMessage": "Tap to reload and update FxBlox.",
+      "reload": "Reload",
+      "offlineReady": "FxBlox is ready to work offline."
+    },
+    "version": "App version {{version}} #{{build}}",
+    "unsupported": {
+      "title": "FxBlox needs Chrome or Edge",
+      "body": "Managing a Blox from the browser uses Web Bluetooth, WebTransport and Chrome's local-network permission, which this browser does not provide ({{reasons}}).",
+      "hint": "Use Chrome or Edge on desktop / Android, or the FxBlox mobile app."
+    },
+    "gallery": {
+      "title": "Component gallery"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "setup": {
+    "steps": {
+      "welcome": "欢迎",
+      "requirements": "使用要求",
+      "linkPassword": "关联密码",
+      "connectToBlox": "连接到 Blox",
+      "connectToExistingBlox": "连接到现有的 Blox",
+      "setBloxAuthorizer": "设置 Blox 授权者",
+      "connectToWifi": "连接到 Wi-Fi",
+      "checkConnection": "检查连接",
+      "setupComplete": "设置完成",
+      "bluetoothCommands": "蓝牙命令"
+    }
+  }
+}

@@ -11,7 +11,13 @@ export default defineConfig({
       // fula-sec-web's `exports` only lists `browser` and `node.require` targets; Vite's Node-side resolver used by
       // Vitest finds no matching condition for an ESM import. Point straight at the ESM build (the browser build
       // is what production uses too).
-      '@functionland/fula-sec-web': fileURLToPath(new URL('../../node_modules/@functionland/fula-sec-web/lib/esm/index.js', import.meta.url)),
+      '@functionland/fula-sec-web': fileURLToPath(
+        new URL('../../node_modules/@functionland/fula-sec-web/lib/esm/index.js', import.meta.url),
+      ),
+      // The PWA register hook is a Vite virtual module; unit tests get a no-op.
+      'virtual:pwa-register/react': fileURLToPath(
+        new URL('./src/test/stubs/pwaRegister.ts', import.meta.url),
+      ),
     },
   },
   define: {
@@ -20,7 +26,8 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify('1970-01-01T00:00:00.000Z'),
   },
   test: {
-    environment: 'jsdom',
+    // jsdom + Node's abort classes kept reachable (react-router data routers build `Request`s — see the file).
+    environment: './src/test/env/jsdomNativeFetch.mjs',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     testTimeout: 15_000,
