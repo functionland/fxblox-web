@@ -35,6 +35,13 @@ export const getMyDIDKeyPair = (
   return { secretKey: Uint8Array.from(keyPair.secretKey), pubKey: Uint8Array.from(keyPair.publicKey) };
 };
 
+/**
+ * Rejection message used when `initFula` is called before the user has linked a password + wallet signature.
+ * It is a precondition, not a failure: screens call `initFula` opportunistically during setup, so it is logged
+ * at `warn` level (a clean session must produce no console errors).
+ */
+export const MISSING_CREDENTIALS_MESSAGE = 'Password and signature are required to initialize Fula.';
+
 let initFulaPromise: Promise<string | undefined> | null = null; // Shared promise to track execution
 let initFulaTimeout: ReturnType<typeof setTimeout> | null = null; // Timeout for cleanup
 let initFulaGen = 0; // Generation counter so stale finally/timeout don't clear a newer promise
@@ -149,7 +156,7 @@ export const initFula = async ({
     (async () => {
       try {
         if (!password || !signiture) {
-          throw new Error('Password and signature are required to initialize Fula.');
+          throw new Error(MISSING_CREDENTIALS_MESSAGE);
         }
 
         // Determine candidate Blox addresses.
@@ -243,7 +250,13 @@ export const initFula = async ({
 
         resolve(peerId);
       } catch (error) {
-        console.error('initFula failed:', error);
+        // Missing credentials is a normal pre-setup state (screens call initFula opportunistically before the
+        // user has linked a password), not a failure — keep it out of console.error so a clean session has none.
+        if (error instanceof Error && error.message === MISSING_CREDENTIALS_MESSAGE) {
+          console.warn('initFula skipped:', error.message);
+        } else {
+          console.error('initFula failed:', error);
+        }
         reject(error);
       } finally {
         console.log('Resetting initFulaPromise');

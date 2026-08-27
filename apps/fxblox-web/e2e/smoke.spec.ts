@@ -131,12 +131,15 @@ test.describe('app routes (paired)', () => {
     });
   }
 
-  test('direct deep-load of /settings/pools/1 shows the pool id', async ({
+  test('direct deep-load of /settings/pools/1 renders the pool detail screen', async ({
     page,
     consoleCapture,
   }) => {
     await gotoPaired(page, '/settings/pools/1');
-    await expect(page.locator('[data-param="poolId"]')).toHaveText('1');
+    // The screen root carries `data-screen` (components/settings/SettingsScreen); the route stays put (a
+    // failed match would redirect or fall into the error element).
+    await expect(page.locator('[data-screen]').first()).toBeVisible();
+    await expect(page).toHaveURL(/\/settings\/pools\/1$/);
     assertClean(consoleCapture);
   });
 
@@ -154,7 +157,10 @@ test.describe('app routes (paired)', () => {
       await expect(page.getByTestId('mobile-header')).toBeHidden();
     } else {
       await expect(page.getByTestId('bottom-tabs')).toBeVisible();
-      await expect(page.getByTestId('mobile-header')).toBeVisible();
+      // The phone header is a slot: AppShell renders `MobileHeader` only while no screen supplies its own
+      // (the Blox dashboard supplies `BloxHeader` through `AppShellHeader`), so assert the slot is filled
+      // rather than which of the two is mounted.
+      await expect(page.getByTestId('app-header-slot')).toBeAttached();
       await expect(page.getByTestId('sidebar')).toBeHidden();
       await expect(page.getByTestId('top-bar')).toBeHidden();
     }

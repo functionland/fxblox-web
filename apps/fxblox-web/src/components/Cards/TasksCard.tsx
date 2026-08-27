@@ -3,7 +3,7 @@
  * read-only multi-select radios (a disabled checkbox inside a pressable row, as on mobile). Must render inside a
  * `WalletGate` (the tasks hook reads the wallet connection).
  */
-import { Fragment } from 'react';
+import { Fragment, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   FxBox,
@@ -32,8 +32,11 @@ export function TasksCard({ className, testID = 'tasks-card' }: TasksCardProps) 
   const { t } = useTranslation('tasks');
   const { t: tMain } = useTranslation();
   const navigate = useNavigate();
+  // Memoised: `useTasksLogic` derives its effect dependencies from this callback, so a new identity on every
+  // render would re-run the effect in a loop.
+  const navigateToPools = useCallback(() => void navigate(paths.settings.pools), [navigate]);
   const { tasks, completedTasks, loading, refreshing, handleTaskPress, refreshTasks } = useTasksLogic({
-    navigateToPools: () => void navigate(paths.settings.pools),
+    navigateToPools,
   });
 
   return (

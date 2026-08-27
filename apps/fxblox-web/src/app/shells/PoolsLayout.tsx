@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { FxEmptyState, FxPoolIcon, useIsWide } from '@functionland/fx-ui';
 import { paths } from '@/app/paths';
 import { FullScreenSpinner } from '@/components/FullScreenSpinner';
+import { WalletGate } from '@/components/main/WalletGate';
 
 const PoolsList = lazy(() => import('@/screens/Settings/Pools/Pools'));
 
@@ -39,9 +40,13 @@ export function PoolsLayout() {
       className="grid grid-cols-[minmax(280px,360px)_minmax(0,1fr)] gap-6"
     >
       <aside className="min-w-0">
-        <Suspense fallback={<FullScreenSpinner fullscreen={false} />}>
-          <PoolsList />
-        </Suspense>
+        {/* The master list is mounted here rather than through the route, so it needs the same AppKit gate the
+            `:poolId` routes get from `lazyWalletScreen` — its cards call the wallet hooks. */}
+        <WalletGate testID="pools-list-gate">
+          <Suspense fallback={<FullScreenSpinner fullscreen={false} />}>
+            <PoolsList />
+          </Suspense>
+        </WalletGate>
       </aside>
       <section className="flex min-w-0 flex-col">
         {atIndex ? <PoolsIndexPlaceholder /> : <Outlet />}

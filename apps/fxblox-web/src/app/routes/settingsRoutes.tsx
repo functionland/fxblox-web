@@ -9,6 +9,7 @@ import { env } from '@/config/env';
 import { SettingsLayout } from '@/app/shells/SettingsLayout';
 import { PoolsLayout } from '@/app/shells/PoolsLayout';
 import { lazyScreen } from './lazyScreen';
+import { lazyWalletScreen } from './lazyWalletScreen';
 
 const h = (title: string): RouteHandle => ({ title, group: 'settings' });
 
@@ -38,7 +39,7 @@ export function buildSettingsRoutes(options: SettingsRoutesOptions = {}): RouteO
         },
         {
           path: 'chain',
-          lazy: lazyScreen(() => import('@/screens/Settings/ChainSelection')),
+          lazy: lazyWalletScreen(() => import('@/screens/Settings/ChainSelection')),
           handle: h('settings.menu.chainSelection'),
         },
         {
@@ -46,14 +47,14 @@ export function buildSettingsRoutes(options: SettingsRoutesOptions = {}): RouteO
           element: <PoolsLayout />,
           handle: h('settings.menu.pools'),
           children: [
-            { index: true, lazy: lazyScreen(() => import('@/screens/Settings/Pools/Pools')) },
+            { index: true, lazy: lazyWalletScreen(() => import('@/screens/Settings/Pools/Pools')) },
             {
               path: ':poolId',
-              lazy: lazyScreen(() => import('@/screens/Settings/Pools/PoolDetails')),
+              lazy: lazyWalletScreen(() => import('@/screens/Settings/Pools/PoolDetails')),
             },
             {
               path: ':poolId/join-requests',
-              lazy: lazyScreen(() => import('@/screens/Settings/Pools/JoinRequests')),
+              lazy: lazyWalletScreen(() => import('@/screens/Settings/Pools/JoinRequests')),
             },
           ],
         },

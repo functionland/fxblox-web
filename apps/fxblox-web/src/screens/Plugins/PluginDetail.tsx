@@ -108,7 +108,9 @@ export default function PluginDetail() {
         }
       }
     } else {
-      console.error('Failed to fetch install status:', result.message);
+      // Expected while the Blox client is not up yet (`fula.newClient()` has not run) — a normal state on a
+      // freshly loaded page, so warn rather than error.
+      console.warn('Install status unavailable:', result.message);
     }
   }, [getInstallStatus, name, listActivePlugins, installStatus]);
 
