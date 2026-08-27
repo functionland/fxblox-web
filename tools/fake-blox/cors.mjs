@@ -13,27 +13,30 @@ export function originAllowed(origin) {
 /**
  * Applies CORS headers and the Origin guard. Returns true when the request has been fully handled
  * (preflight answered or request rejected) and the caller must stop.
+ * Requests without an Origin header (mobile app, curl, BLE proxy) are passed through untouched.
  */
 export function applyCors(req, res, { allowHeaders = 'content-type', scenario = '' } = {}) {
   const origin = req.headers.origin;
   if (scenario === 'old-firmware') return false; // no CORS at all, like today's Blox
+  if (!origin) return false;
 
-  if (origin && originAllowed(origin)) {
+  res.setHeader('Vary', 'Origin');
+  const allowed = originAllowed(origin);
+  if (allowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', allowHeaders);
     res.setHeader('Access-Control-Max-Age', '600');
   }
 
   if (req.method === 'OPTIONS') {
-    res.writeHead(origin && originAllowed(origin) ? 204 : 403);
+    res.writeHead(allowed ? 204 : 403);
     res.end();
     return true;
   }
 
   // Origin guard: a present-but-unlisted Origin on a state-changing method is a cross-site request → 403.
-  if (origin && !originAllowed(origin) && req.method !== 'GET' && req.method !== 'HEAD') {
+  if (!allowed && req.method !== 'GET' && req.method !== 'HEAD') {
     res.writeHead(403, { 'content-type': 'text/plain' });
     res.end('forbidden origin');
     return true;
