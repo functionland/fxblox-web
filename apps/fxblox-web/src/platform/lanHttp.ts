@@ -75,9 +75,27 @@ export function hostOf(url: string): string {
   }
 }
 
-/** Private IP literal, loopback or `localhost` → gets `targetAddressSpace: 'local'`. */
+/** Private IP literal, loopback or `localhost`. */
 export function isLocalTarget(url: string): boolean {
   const host = hostOf(url).replace(/^\[|\]$/g, '');
+  if (!host) return false;
+  if (host === 'localhost' || host.endsWith('.local')) return true;
+  if (/^127\./.test(host) || host === '::1') return true;
+  return ipIsPrivateLan(host);
+}
+
+/**
+ * True when the PAGE is itself in a local address space (dev on localhost, or the app served off a LAN IP).
+ *
+ * `targetAddressSpace` is an assertion, not a hint: setting it makes Chrome run a Private Network Access
+ * preflight and refuse the request unless the server answers it. That gate exists to protect local devices
+ * from PUBLIC pages, so it is only meaningful when the page is more public than the target. Asserting it from
+ * a page that is already local buys nothing and breaks the request outright — verified against a real Blox,
+ * where `fetch(..., { targetAddressSpace: 'local' })` from http://127.0.0.1:5173 threw "Failed to fetch"
+ * while the identical fetch without it returned 200.
+ */
+export function pageIsLocal(hostname = globalThis.location?.hostname ?? ''): boolean {
+  const host = hostname.replace(/^\[|\]$/g, '');
   if (!host) return false;
   if (host === 'localhost' || host.endsWith('.local')) return true;
   if (/^127\./.test(host) || host === '::1') return true;
@@ -116,7 +134,8 @@ export function buildLanRequest(url: string, init: LanRequestInit = {}): BuiltLa
     headers,
   };
   if (body !== undefined) request.body = body;
-  if (isLocalTarget(fullUrl)) request.targetAddressSpace = 'local';
+  // Only assert the target address space when crossing INTO it from a more public page — see `pageIsLocal`.
+  if (isLocalTarget(fullUrl) && !pageIsLocal()) request.targetAddressSpace = 'local';
   return { url: fullUrl, init: request };
 }
 
