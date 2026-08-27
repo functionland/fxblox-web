@@ -11,6 +11,194 @@
       "checkConnection": "Check connection",
       "setupComplete": "Setup complete",
       "bluetoothCommands": "Bluetooth commands"
+    },
+    "common": {
+      "back": "Back",
+      "continue": "Continue",
+      "next": "Next",
+      "cancel": "Cancel",
+      "copy": "Copy",
+      "copied": "Copied to clipboard",
+      "share": "Share",
+      "shareFailed": "Could not share",
+      "loading": "Loading…",
+      "refresh": "Refresh",
+      "close": "Close"
+    },
+    "welcome": {
+      "imageAlt": "FxBlox tower",
+      "debugToggle": "Toggle debug mode (or press and hold the picture for 3 seconds)",
+      "debugEnabled": "Debug mode enabled",
+      "debugDisabled": "Debug mode disabled"
+    },
+    "requirements": {
+      "title": "Before you start",
+      "intro": "Setting up a Blox from the browser needs a few permissions. Chrome or Edge asks for them at the right moment — here is what to expect.",
+      "lna": {
+        "title": "Local network access",
+        "body": "The first time this site talks to your Blox (its FxBlox hotspot at 10.42.0.1, or its address on your Wi-Fi) Chrome shows a prompt asking to allow access to devices on your local network. Choose Allow. If you dismissed it, re-enable it at the address below."
+      },
+      "bluetooth": {
+        "title": "Bluetooth",
+        "body": "\"Connect via Bluetooth\" opens Chrome's device chooser. Pick the device named fulatower or fxblox and click Pair. Bluetooth is optional when you can join the FxBlox hotspot."
+      },
+      "camera": {
+        "title": "Camera (optional)",
+        "body": "Scanning a pairing QR code (Auto-Pin pairing) asks for camera access. You can always paste the code instead."
+      },
+      "chromium": {
+        "title": "Chrome or Edge required",
+        "body": "Web Bluetooth and the local-network permission are only available in Chromium browsers (Chrome, Edge) on desktop and Android."
+      },
+      "status": {
+        "title": "This browser",
+        "chromium": "Chromium browser",
+        "webBluetooth": "Web Bluetooth",
+        "lna": "Local network access",
+        "camera": "Camera",
+        "available": "Available",
+        "unavailable": "Not available",
+        "granted": "Allowed",
+        "denied": "Blocked",
+        "prompt": "Will ask",
+        "unsupported": "Not needed"
+      },
+      "language": "Language",
+      "continue": "Continue"
+    },
+    "linkPassword": {
+      "walletLoading": "Loading wallet…",
+      "walletUnavailable": "The wallet module could not be loaded. You can still sign manually.",
+      "copyDid": "Copy identity",
+      "didCopied": "Identity copied to clipboard",
+      "clearAppStorageWebMessage": "This deletes everything FxBlox stored in this browser — identity, Blox list, settings and caches — and reloads the page.",
+      "clearAppStorageConfirm": "Clear and reload",
+      "clearAppStorageFailed": "Could not clear the app storage",
+      "signaturePortalHint": "Sign at fxblox.fx.land, then paste the signature below together with the wallet address you signed with."
+    },
+    "connectToBlox": {
+      "intro": "Turn your Blox on. You can reach it over Bluetooth, or by joining its Wi-Fi hotspot.",
+      "connectViaBluetooth": "Connect via Bluetooth",
+      "hotspotCheck": "I'm on the FxBlox hotspot — check",
+      "hotspotJoin": "Join the Wi-Fi network \"FxBlox\" from your computer's or phone's Wi-Fi settings, then press \"I'm on the FxBlox hotspot — check\".",
+      "lnaExplainer": "Chrome will ask to allow this site to access devices on your local network. Choose Allow.",
+      "checkingHotspot": "Checking the hotspot… we keep checking every few seconds.",
+      "bleChooserHint": "Chrome's device chooser opens — pick \"fulatower\" or \"fxblox\" and click Pair.",
+      "bleUnavailable": "Web Bluetooth is not available in this browser.",
+      "bleCancelled": "No device was selected.",
+      "connectionError": "Connection error",
+      "connectionErrorMessage": "Could not reach the Blox. Make sure you are connected to the FxBlox hotspot and try again.",
+      "error": {
+        "lnaDeniedTitle": "Local network access is blocked",
+        "lnaDeniedBody": "Chrome is blocking this site from talking to your Blox. Open the address below, allow this site, then try again.",
+        "corsTitle": "Blox firmware needs an update for browser access",
+        "corsBody": "The Blox answered, but its firmware predates the web update (missing CORS headers). Use \"Connect via Bluetooth\" to continue, or update the Blox from the mobile app.",
+        "unreachableTitle": "The hotspot did not answer",
+        "unreachableBody": "Make sure this device is connected to the Wi-Fi network \"FxBlox\" (not your home network) and that the Blox is powered on.",
+        "timeoutTitle": "The Blox did not answer in time",
+        "timeoutBody": "The Blox may still be booting. Wait for the light-blue LED and try again.",
+        "openSettings": "Copy this address and paste it into Chrome's address bar:"
+      }
+    },
+    "connectToExistingBlox": {
+      "scan": "Scan",
+      "scanViaBluetooth": "Scan via Bluetooth",
+      "scanning": "Scanning network for Blox devices...",
+      "noDevices": "No devices found. Make sure your Blox is powered on and connected to the same network.",
+      "webScanHint": "The browser cannot discover devices by itself: the scan checks the FxBlox hotspot, addresses this app has seen before and the ones the discovery service reports for your Bloxs. If your Blox is not listed, add it by IP address.",
+      "addManually": "Add Manually",
+      "enterIpAddress": "Enter the IP address of your Fula Node",
+      "invalidIp": "Enter a private network address (for example 192.168.1.100).",
+      "cancel": "Cancel",
+      "connect": "Connect",
+      "setup": "Setup",
+      "newDevice": "New Device",
+      "viaBluetooth": "via Bluetooth",
+      "bleScanFailed": "Could not read the Blox over Bluetooth",
+      "back": "Back"
+    },
+    "setBloxAuthorizer": {
+      "share": "Share",
+      "copied": "Copied to clipboard",
+      "enterCode": "Code",
+      "lanTarget": "Blox at {{ip}}:{{port}}",
+      "manualHint": "Enter the peer ID of the Blox you want to add (shown in the mobile app or on the Blox itself).",
+      "formatDiskSent": "Format request sent"
+    },
+    "diskCard": {
+      "inUse": "In use",
+      "notAvailable": "Not available"
+    },
+    "connectToWifi": {
+      "listError": "Could not read the Wi-Fi list from the Blox.",
+      "refresh": "Refresh the list",
+      "bloxSideHint": "These are the networks your Blox can see.",
+      "imageAlt": "Blox connecting to Wi-Fi",
+      "password": {
+        "title": "Enter password for \"{{ssid}}\"",
+        "countryCode": "Country code",
+        "countryCodeHint": "Two-letter Wi-Fi regulatory country (for example CA, US, DE).",
+        "password": "Password",
+        "connect": "Connect",
+        "connecting": "Connecting",
+        "unableToConnect": "Unable to connect to wifi"
+      }
+    },
+    "checkConnection": {
+      "title": "Reconnect to your Blox",
+      "instructions": "Your Blox is joining \"{{ssid}}\". Its FxBlox hotspot switches off as soon as it connects.",
+      "step1": "If the \"FxBlox\" hotspot is still visible, stay connected to it.",
+      "step2": "Otherwise join \"{{ssid}}\" — the same network as the Blox.",
+      "step3": "Then press \"I'm connected\".",
+      "imConnected": "I'm connected",
+      "stop": "Stop checking",
+      "checking": "Checking every 5 seconds — attempt {{count}}",
+      "skip": "Skip this check",
+      "apDisableFailed": "Could not turn off the hotspot; it switches off by itself once the Blox is online."
+    },
+    "setupComplete": {
+      "towerLabel": "Blox LED",
+      "keepTabOpen": "Keep this tab open while the Blox connects."
+    },
+    "bluetoothCommands": {
+      "title": "Bluetooth commands",
+      "connect": "Connect",
+      "connecting": "Connecting to Bluetooth...",
+      "notConnected": "Click the plug icon in the top right corner to connect to your FxBlox device using Bluetooth",
+      "hint": "Click on this icon to connect to your FxBlox and after connection you will see the available commands",
+      "dismissHint": "Got it",
+      "connected": "Connected to Blox device",
+      "connectFailed": "Failed to connect to Blox device",
+      "connectionFailed": "Connection failed",
+      "unknownError": "Unknown connection error",
+      "commands": {
+        "partition": "Partition",
+        "cluster_delete": "IPFS Delete",
+        "restart_fula": "Restart Fula",
+        "restart_uniondrive": "Restart Uniondrive",
+        "hotspot": "Hotspot",
+        "reset": "Reset",
+        "wireguard/start": "SUPPORT ON",
+        "wireguard/stop": "SUPPORT OFF",
+        "forceupdate": "Force Update"
+      },
+      "confirmTitle": "Confirm Action",
+      "confirmMessage": "Are you sure you want to execute {{label}}?",
+      "yes": "Yes",
+      "cancel": "Cancel",
+      "codeTitle": "Security code",
+      "codePrompt": "Enter the code given to you by the support team",
+      "submit": "Submit",
+      "invalidCode": "Invalid Code",
+      "invalidCodeMessage": "Please enter the correct code provided by support team",
+      "commandExecuted": "Command executed successfully",
+      "commandFailed": "Failed to execute command",
+      "logsFailed": "Failed to fetch logs",
+      "logsTitle": "Share the logs below with support team by clicking on the copy icon",
+      "refreshLogs": "Refresh logs",
+      "copyLogs": "Copy logs",
+      "logsCopied": "Logs copied to clipboard",
+      "noLogs": "No logs yet"
     }
   }
 }

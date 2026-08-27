@@ -1,7 +1,16 @@
-// Global ProfileSheet mount point (mobile ProfileBottomSheet: WalletDetails, account, notifications). The real
-// content lands in WS4-F; the shell owns the open state so the TopBar/MobileHeader avatar works today.
-import { FxEmptyState, FxSheet, FxUserIcon } from '@functionland/fx-ui';
+/**
+ * Global ProfileSheet (mobile ProfileBottomSheet): WalletDetails (DID + App PeerId) behind the wallet gate and the
+ * "Blox Discovery" entry (→ /setup/connect-existing). The shell owns the open state. WalletDetails is lazy so the
+ * AppKit / crypto chunks stay out of the eager shell (this file is imported by AppShell).
+ */
+import { lazy, Suspense } from 'react';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { FxBox, FxButton, FxSheet, FxSpinner } from '@functionland/fx-ui';
+import { paths } from '@/app/paths';
+import { WalletGate } from '@/components/main/WalletGate';
+
+const WalletDetails = lazy(() => import('@/components/WalletDetails'));
 
 export interface ProfileSheetProps {
   open: boolean;
@@ -10,6 +19,11 @@ export interface ProfileSheetProps {
 
 export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const onBloxDiscovery = () => {
+    onOpenChange(false);
+    void navigate(paths.setup.connectExisting);
+  };
   return (
     <FxSheet
       title={t('shell.profile.title')}
@@ -18,12 +32,22 @@ export function ProfileSheet({ open, onOpenChange }: ProfileSheetProps) {
       desktopMode="side"
       testID="profile-sheet"
     >
-      <FxEmptyState
-        icon={<FxUserIcon />}
-        title={t('shell.comingSoon', { name: t('shell.profile.title') })}
-        description={t('shell.profile.comingSoon')}
-        compact
-      />
+      <FxBox paddingVertical="8" gap="20">
+        <WalletGate>
+          <Suspense
+            fallback={
+              <FxBox alignItems="center" paddingVertical="16">
+                <FxSpinner label={t('shell.loading')} />
+              </FxBox>
+            }
+          >
+            <WalletDetails showDID={true} showPeerId={true} showBloxPeerIds={false} />
+          </Suspense>
+        </WalletGate>
+        <FxButton variant="inverted" size="large" onPress={onBloxDiscovery} testID="profile-blox-discovery">
+          {t('main.profile.bloxDiscovery')}
+        </FxButton>
+      </FxBox>
     </FxSheet>
   );
 }

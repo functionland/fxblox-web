@@ -11,6 +11,194 @@
       "checkConnection": "检查连接",
       "setupComplete": "设置完成",
       "bluetoothCommands": "蓝牙命令"
+    },
+    "common": {
+      "back": "返回",
+      "continue": "继续",
+      "next": "下一步",
+      "cancel": "取消",
+      "copy": "复制",
+      "copied": "已复制到剪贴板",
+      "share": "分享",
+      "shareFailed": "无法分享",
+      "loading": "加载中…",
+      "refresh": "刷新",
+      "close": "关闭"
+    },
+    "welcome": {
+      "imageAlt": "FxBlox 设备",
+      "debugToggle": "切换调试模式（或长按图片 3 秒）",
+      "debugEnabled": "调试模式已启用",
+      "debugDisabled": "调试模式已关闭"
+    },
+    "requirements": {
+      "title": "开始之前",
+      "intro": "在浏览器中设置 Blox 需要几项权限。Chrome 或 Edge 会在合适的时机询问，以下是您将看到的内容。",
+      "lna": {
+        "title": "本地网络访问",
+        "body": "本网站第一次与您的 Blox 通信时（其 FxBlox 热点 10.42.0.1，或它在您 Wi-Fi 中的地址），Chrome 会弹出提示，询问是否允许访问本地网络中的设备。请选择「允许」。如果您关闭了提示，可以在下方地址重新启用。"
+      },
+      "bluetooth": {
+        "title": "蓝牙",
+        "body": "「通过蓝牙连接」会打开 Chrome 的设备选择器。请选择名为 fulatower 或 fxblox 的设备并点击「配对」。如果您可以加入 FxBlox 热点，蓝牙是可选的。"
+      },
+      "camera": {
+        "title": "摄像头（可选）",
+        "body": "扫描配对二维码（自动固定配对）时会请求摄像头权限。您也可以改为粘贴代码。"
+      },
+      "chromium": {
+        "title": "需要 Chrome 或 Edge",
+        "body": "Web Bluetooth 和本地网络权限仅在桌面和 Android 上的 Chromium 浏览器（Chrome、Edge）中可用。"
+      },
+      "status": {
+        "title": "当前浏览器",
+        "chromium": "Chromium 浏览器",
+        "webBluetooth": "Web Bluetooth",
+        "lna": "本地网络访问",
+        "camera": "摄像头",
+        "available": "可用",
+        "unavailable": "不可用",
+        "granted": "已允许",
+        "denied": "已阻止",
+        "prompt": "将会询问",
+        "unsupported": "无需权限"
+      },
+      "language": "语言",
+      "continue": "继续"
+    },
+    "linkPassword": {
+      "walletLoading": "正在加载钱包…",
+      "walletUnavailable": "无法加载钱包模块。您仍然可以手动签名。",
+      "copyDid": "复制身份",
+      "didCopied": "身份已复制到剪贴板",
+      "clearAppStorageWebMessage": "这将删除 FxBlox 在此浏览器中存储的所有内容——身份、Blox 列表、设置和缓存——并重新加载页面。",
+      "clearAppStorageConfirm": "清除并重新加载",
+      "clearAppStorageFailed": "无法清除应用存储",
+      "signaturePortalHint": "请在 fxblox.fx.land 完成签名，然后将签名与用于签名的钱包地址一起粘贴到下方。"
+    },
+    "connectToBlox": {
+      "intro": "打开您的 Blox。您可以通过蓝牙连接，或加入它的 Wi-Fi 热点。",
+      "connectViaBluetooth": "通过蓝牙连接",
+      "hotspotCheck": "我已连接 FxBlox 热点 — 检查",
+      "hotspotJoin": "在电脑或手机的 Wi-Fi 设置中加入名为「FxBlox」的 Wi-Fi 网络，然后点击「我已连接 FxBlox 热点 — 检查」。",
+      "lnaExplainer": "Chrome 会询问是否允许本网站访问本地网络中的设备，请选择「允许」。",
+      "checkingHotspot": "正在检查热点… 我们会每隔几秒重新检查。",
+      "bleChooserHint": "Chrome 的设备选择器将打开 — 选择「fulatower」或「fxblox」并点击「配对」。",
+      "bleUnavailable": "此浏览器不支持 Web Bluetooth。",
+      "bleCancelled": "未选择任何设备。",
+      "connectionError": "连接错误",
+      "connectionErrorMessage": "无法连接到 Blox。请确保已连接到 FxBlox 热点，然后重试。",
+      "error": {
+        "lnaDeniedTitle": "本地网络访问已被阻止",
+        "lnaDeniedBody": "Chrome 阻止了本网站与您的 Blox 通信。请打开下方地址，允许本网站，然后重试。",
+        "corsTitle": "Blox 固件需要更新才能通过浏览器访问",
+        "corsBody": "Blox 有响应，但其固件早于网页版更新（缺少 CORS 头）。请使用「通过蓝牙连接」继续，或通过手机应用更新 Blox。",
+        "unreachableTitle": "热点没有响应",
+        "unreachableBody": "请确保此设备已连接到名为「FxBlox」的 Wi-Fi 网络（而非您的家庭网络），并且 Blox 已开机。",
+        "timeoutTitle": "Blox 未及时响应",
+        "timeoutBody": "Blox 可能仍在启动。请等待淡蓝色 LED 亮起后重试。",
+        "openSettings": "复制此地址并粘贴到 Chrome 的地址栏："
+      }
+    },
+    "connectToExistingBlox": {
+      "scan": "扫描",
+      "scanViaBluetooth": "通过蓝牙扫描",
+      "scanning": "正在扫描网络中的 Blox 设备...",
+      "noDevices": "未找到设备。请确保您的 Blox 已开机并连接到同一网络。",
+      "webScanHint": "浏览器无法自行发现设备：扫描会检查 FxBlox 热点、此应用之前见过的地址，以及发现服务报告的您的 Blox 地址。如果您的 Blox 未列出，请通过 IP 地址添加。",
+      "addManually": "手动添加",
+      "enterIpAddress": "输入您的 Fula 节点的 IP 地址",
+      "invalidIp": "请输入私有网络地址（例如 192.168.1.100）。",
+      "cancel": "取消",
+      "connect": "连接",
+      "setup": "设置",
+      "newDevice": "新设备",
+      "viaBluetooth": "通过蓝牙",
+      "bleScanFailed": "无法通过蓝牙读取 Blox",
+      "back": "返回"
+    },
+    "setBloxAuthorizer": {
+      "share": "分享",
+      "copied": "已复制到剪贴板",
+      "enterCode": "代码",
+      "lanTarget": "位于 {{ip}}:{{port}} 的 Blox",
+      "manualHint": "输入您要添加的 Blox 的对等 ID（显示在手机应用或 Blox 设备上）。",
+      "formatDiskSent": "格式化请求已发送"
+    },
+    "diskCard": {
+      "inUse": "使用中",
+      "notAvailable": "不可用"
+    },
+    "connectToWifi": {
+      "listError": "无法从 Blox 读取 Wi-Fi 列表。",
+      "refresh": "刷新列表",
+      "bloxSideHint": "这些是您的 Blox 能看到的网络。",
+      "imageAlt": "Blox 正在连接 Wi-Fi",
+      "password": {
+        "title": "输入「{{ssid}}」的密码",
+        "countryCode": "国家代码",
+        "countryCodeHint": "两位字母的 Wi-Fi 监管国家代码（例如 CA、US、CN）。",
+        "password": "密码",
+        "connect": "连接",
+        "connecting": "正在连接",
+        "unableToConnect": "无法连接到 wifi"
+      }
+    },
+    "checkConnection": {
+      "title": "重新连接到您的 Blox",
+      "instructions": "您的 Blox 正在加入「{{ssid}}」。连接成功后，其 FxBlox 热点会立即关闭。",
+      "step1": "如果「FxBlox」热点仍然可见，请保持连接。",
+      "step2": "否则请加入「{{ssid}}」— 与 Blox 相同的网络。",
+      "step3": "然后点击「我已连接」。",
+      "imConnected": "我已连接",
+      "stop": "停止检查",
+      "checking": "每 5 秒检查一次 — 第 {{count}} 次尝试",
+      "skip": "跳过此检查",
+      "apDisableFailed": "无法关闭热点；Blox 上线后热点会自动关闭。"
+    },
+    "setupComplete": {
+      "towerLabel": "Blox LED",
+      "keepTabOpen": "在 Blox 连接期间请保持此标签页打开。"
+    },
+    "bluetoothCommands": {
+      "title": "蓝牙命令",
+      "connect": "连接",
+      "connecting": "正在连接蓝牙...",
+      "notConnected": "点击右上角的插头图标，通过蓝牙连接到您的 FxBlox 设备",
+      "hint": "点击此图标连接到您的 FxBlox，连接后您将看到可用的命令",
+      "dismissHint": "知道了",
+      "connected": "已连接到 Blox 设备",
+      "connectFailed": "无法连接到 Blox 设备",
+      "connectionFailed": "连接失败",
+      "unknownError": "未知连接错误",
+      "commands": {
+        "partition": "分区",
+        "cluster_delete": "删除 IPFS",
+        "restart_fula": "重启 Fula",
+        "restart_uniondrive": "重启 Uniondrive",
+        "hotspot": "热点",
+        "reset": "重置",
+        "wireguard/start": "开启支持",
+        "wireguard/stop": "关闭支持",
+        "forceupdate": "强制更新"
+      },
+      "confirmTitle": "确认操作",
+      "confirmMessage": "您确定要执行 {{label}} 吗？",
+      "yes": "是",
+      "cancel": "取消",
+      "codeTitle": "安全码",
+      "codePrompt": "输入支持团队提供给您的代码",
+      "submit": "提交",
+      "invalidCode": "无效代码",
+      "invalidCodeMessage": "请输入支持团队提供的正确代码",
+      "commandExecuted": "命令执行成功",
+      "commandFailed": "命令执行失败",
+      "logsFailed": "获取日志失败",
+      "logsTitle": "点击复制图标，将下方日志分享给支持团队",
+      "refreshLogs": "刷新日志",
+      "copyLogs": "复制日志",
+      "logsCopied": "日志已复制到剪贴板",
+      "noLogs": "暂无日志"
     }
   }
 }
