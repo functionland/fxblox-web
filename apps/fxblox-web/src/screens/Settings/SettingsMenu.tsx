@@ -74,6 +74,9 @@ export function useSettingsMenuItems(): SettingsMenuItem[] {
       ? [{ id: 'bloxLogs', label: t('settings.menu.bloxLogs'), to: paths.settings.logs }]
       : []),
     { id: 'autoPinPairing', label: t('settings.menu.autoPinPairing'), to: paths.settings.autopin },
+    // Web-only entry: mobile reaches ConnectedDApps through the `fxblox://connectdapp/…` deep link only;
+    // the web route `/settings/dapps` exists (plan route table), so it needs a menu entry.
+    { id: 'connectedDApps', label: t('settings.menu.connectedDApps'), to: paths.settings.dapps },
     { id: 'about', label: t('settings.menu.about'), to: paths.settings.about },
     ...(env.ENABLE_GALLERY
       ? [

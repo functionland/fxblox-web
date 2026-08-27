@@ -53,7 +53,8 @@ export function IndexRedirect() {
 export function RequireSetup() {
   const setUp = useIsSetUp();
   const location = useLocation();
-  const attempted = `${location.pathname}${location.search}`;
+  // Include the fragment: the v1.1 autopin hand-off carries its params in `#token=…` (never sent to servers).
+  const attempted = `${location.pathname}${location.search}${location.hash}`;
   const stash = !setUp && isDeepLinkPath(location.pathname);
 
   // Layout effect: runs before <Navigate>'s passive effect performs the redirect, so the SetupShell banner sees the

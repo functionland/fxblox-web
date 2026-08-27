@@ -32,6 +32,461 @@
       "confirm": "Log out",
       "cancel": "Cancel",
       "failed": "Log out failed"
+    },
+    "common": {
+      "back": "Back",
+      "cancel": "Cancel",
+      "save": "Save",
+      "edit": "Edit",
+      "done": "Done",
+      "confirm": "Confirm",
+      "ok": "OK",
+      "retry": "Retry",
+      "refresh": "Refresh",
+      "copy": "Copy",
+      "copied": "Copied!",
+      "error": "Error",
+      "unknownError": "Unknown error"
+    },
+    "bloxStatusMonitor": {
+      "title": "Blox Status Monitor",
+      "checkInterval": "Check interval",
+      "description": "When enabled, the app periodically checks if your bloxes are reachable and notifies you of any that are disconnected.",
+      "webNote": "Note: In the browser these checks only run while this tab is open — there is no background execution. Each blox check takes approximately 30 seconds.",
+      "options": {
+        "0": "Disabled",
+        "480": "Every 8 hours",
+        "1440": "Every 24 hours"
+      },
+      "lastRun": "Last check: {{time}}",
+      "neverRun": "No check has run yet",
+      "runNow": "Check now",
+      "running": "Checking…"
+    },
+    "mode": {
+      "title": "Mode",
+      "colorScheme": "Color scheme",
+      "light": "Light",
+      "dark": "Dark",
+      "previewAlt": "{{mode}} mode preview",
+      "autoTitle": "Automatic dark mode",
+      "autoDescription": "Use system light/dark mode setting.",
+      "language": "Language",
+      "languageEn": "English",
+      "languageZh": "中文 (Chinese)",
+      "debugTitle": "Debug mode",
+      "debugDescription": "Enable logs for troubleshooting by support team",
+      "preferBluetoothTitle": "Prefer Bluetooth",
+      "preferBluetoothDescription": "Skip the local-network (hotspot) connection and use Web Bluetooth for Blox setup and commands."
+    },
+    "chain": {
+      "title": "Chain Selection",
+      "disconnectWallet": "Disconnect Wallet",
+      "connectWallet": "Connect Wallet",
+      "switchingChain": "Switching Chain...",
+      "manualWalletStored": "Manual wallet stored",
+      "walletAccount": "Wallet Account",
+      "connectedViaWallet": "Connected via Wallet",
+      "manualSignatureWallet": "Manual Signature Wallet",
+      "noWallet": "No wallet connected. Connect a wallet or enter a wallet address manually.",
+      "walletAddress": "Wallet Address",
+      "walletAddressPlaceholder": "0x...",
+      "addressSaved": {
+        "title": "Wallet Address Saved",
+        "message": "Your wallet address has been saved"
+      },
+      "invalidAddress": {
+        "title": "Invalid Address",
+        "message": "Please enter a valid Ethereum address starting with 0x"
+      },
+      "selectNetwork": "Select the blockchain network for pool operations:",
+      "skaleDescription": "Default network • Zero gas fees • No authorization required",
+      "baseDescription": "Requires authorization code • Gas fees apply",
+      "authorizedSuffix": " • Authorized ✓",
+      "enterAuthCode": "Enter Base Network Authorization Code:",
+      "authCodePlaceholder": "Authorization code",
+      "authorize": "Authorize",
+      "invalidCode": {
+        "title": "Invalid Authorization Code",
+        "message": "Please enter the correct authorization code"
+      },
+      "resetBaseAuth": "Reset Base Authorization",
+      "resetConfirm": {
+        "title": "Reset Base Authorization",
+        "message": "Are you sure you want to reset Base network authorization? You will need to re-enter the authorization code to use Base network again.",
+        "confirm": "Reset",
+        "cancel": "Cancel"
+      },
+      "resetDone": {
+        "title": "Authorization Reset",
+        "message": "Base network authorization has been reset"
+      },
+      "chainUpdated": {
+        "title": "Chain Updated",
+        "messageConnected": "Switched to {{chain}}. Use the notification below to connect your wallet to this network.",
+        "messageDisconnected": "Switched to {{chain}}. Connect your wallet to use this network."
+      },
+      "currentSelection": "Current Selection:",
+      "currentSelectionHint": "All pool operations will use this network"
+    },
+    "walletNotification": {
+      "connect": {
+        "title": "Connect Your Wallet",
+        "message": "You need to connect your wallet to continue with transactions and view your data.",
+        "button": "Connect Wallet",
+        "loading": "Connecting..."
+      },
+      "network": {
+        "title": "Switch to {{network}}",
+        "message": "Your app is configured for {{network}}, but your wallet is on a different network. Please switch to {{network}} to continue.",
+        "button": "Switch to {{network}}",
+        "switching": "Switching...",
+        "adding": "Adding Network..."
+      },
+      "dismiss": "Dismiss"
+    },
+    "pools": {
+      "title": "Pools",
+      "networkStatus": "Network Status",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "account": "Account: {{account}}",
+      "searchPlaceholder": "Search pools...",
+      "refresh": "Refresh",
+      "retry": "Retry",
+      "errorLoading": "Error loading pools!",
+      "empty": "No pools found",
+      "emptyHint": "Pools appear here once your wallet is connected and the list has loaded.",
+      "loading": "Loading pools",
+      "viewDetails": "View details",
+      "selected": "Selected",
+      "walletNotConnected": {
+        "title": "Wallet Not Connected",
+        "message": "Please connect your wallet or sign manually to view pools"
+      },
+      "errorGettingPools": "Error getting pools",
+      "leaveConfirm": {
+        "title": "Leave Pool",
+        "message": "Leave pool \"{{name}}\" on {{chain}}? This sends a transaction from your wallet.",
+        "gasNote": "Base charges gas fees for this transaction.",
+        "confirm": "Leave"
+      },
+      "cancelConfirm": {
+        "title": "Cancel Join Request",
+        "message": "Cancel your join request for \"{{name}}\" on {{chain}}? This sends a transaction from your wallet.",
+        "confirm": "Cancel request",
+        "keep": "Keep request"
+      },
+      "joinRequestCancelled": {
+        "title": "Join Request Cancelled",
+        "message": "Your join request has been cancelled"
+      },
+      "errorCancelling": "Error canceling pool join request",
+      "networkSwitchRequired": {
+        "title": "Network Switch Required",
+        "message": "Please use the network notification above to switch to the correct network, then try again."
+      }
+    },
+    "poolCard": {
+      "id": "ID: {{id}}",
+      "tag": "Home Blox Setup",
+      "location": "Location",
+      "bloxStatus": "Blox Status",
+      "bloxConnected": "🟢 Connected",
+      "bloxDisconnected": "🔴 Disconnected",
+      "status": "Status",
+      "joined": "Joined",
+      "requested": "Requested (votes: {{votes}}/{{voters}})",
+      "votingStatus": "Voting status",
+      "buttons": {
+        "cancel": "Cancel",
+        "leavePool": "Leave Pool",
+        "bloxDisconnected": "Blox Disconnected",
+        "resendContract": "Re-send (Contract)",
+        "resendJoin": "Re-send Join",
+        "joinContract": "Join (Contract)",
+        "join": "Join",
+        "cancelRequest": "Cancel Request",
+        "forceRejoin": "Force Rejoin"
+      },
+      "joinStatus": "Join Status:",
+      "bloxConfiguration": "• Blox Configuration: {{state}}",
+      "poolRegistration": "• Pool Registration: {{state}}",
+      "complete": "✓ Complete",
+      "pending": "✗ Pending",
+      "bloxError": "Blox Error: {{error}}",
+      "apiError": "API Error: {{error}}",
+      "walletNotConnected": {
+        "title": "Wallet Not Connected",
+        "message": "Please connect your wallet first."
+      },
+      "bloxPeerIdMissing": {
+        "title": "Blox Peer ID Missing",
+        "message": "Blox peer ID is not available."
+      },
+      "joinConfirm": {
+        "title": "Join Pool",
+        "message": "Are you sure you want to join pool: {{name}} on {{chain}} for Blox: {{blox}}?",
+        "pcMessage": "Joining pool \"{{name}}\" requires locking {{tokens}} FULA tokens.\n\nYou will be asked to approve the token transfer, then confirm the join transaction.\n\nContinue?",
+        "confirm": "Join"
+      },
+      "cancelled": {
+        "title": "Cancelled",
+        "message": "Join operation cancelled. You can retry."
+      },
+      "timeout": {
+        "title": "Timeout",
+        "message": "Join operation timed out. Check your transaction status and retry if needed."
+      },
+      "joined_toast": {
+        "title": "Pool Joined Successfully",
+        "transaction": "Transaction: {{hash}}...",
+        "member": "You are now a member of the pool!"
+      },
+      "submitted": {
+        "title": "Join Request Submitted",
+        "message": "Your join request has been submitted. It may take up to 1 hour to get processed."
+      },
+      "partial": {
+        "title": "Partial Join Complete",
+        "message": "Blox configuration updated. Click \"Re-send Join\" to complete the process."
+      },
+      "notRegistered": {
+        "title": "Blox Not Registered",
+        "message": "Your Blox is not registered. Please contact sales@fx.land or register your Blox.",
+        "contactSales": "Contact Sales",
+        "registerBlox": "Register Blox",
+        "ok": "OK"
+      },
+      "joinFailed": {
+        "title": "Join Pool Failed",
+        "default": "Join failed",
+        "requestFailed": "Join request failed"
+      },
+      "resendFailed": {
+        "title": "Re-send Join Failed"
+      },
+      "rejoined": {
+        "title": "Pool Rejoined",
+        "message": "Pool ID {{id}} has been re-set on your Blox."
+      },
+      "rejoinFailed": {
+        "title": "Rejoin Failed",
+        "message": "Failed to rejoin pool on Blox."
+      }
+    },
+    "poolDetails": {
+      "title": "Pool details",
+      "notFound": "Pool not found",
+      "notFoundHint": "This pool is not in the loaded list. Refresh the pools list or check the pool id.",
+      "poolId": "Pool ID",
+      "region": "Region",
+      "network": "Network",
+      "members": "Members",
+      "maxMembers": "Max Members",
+      "requiredTokens": "Required Tokens",
+      "fula": "{{amount}} FULA",
+      "leavePool": "Leave Pool",
+      "forceRejoin": "Force Rejoin",
+      "joinPool": "Join Pool",
+      "joinRequests": "Join Requests",
+      "joinRequestsComingSoon": "Join request management coming soon",
+      "membersCount": "Members ({{count}})",
+      "you": " (You)",
+      "noMembers": "No members found",
+      "refresh": "Refresh",
+      "loadError": {
+        "title": "Error",
+        "message": "Failed to load pool details"
+      },
+      "joinConfirm": {
+        "title": "Join Pool Confirmation",
+        "message": "Are you sure you want to join pool \"{{name}}\" on {{chain}}?",
+        "confirm": "Join"
+      },
+      "joinSent": {
+        "title": "Join Request Sent"
+      },
+      "joinFailed": {
+        "title": "Join Failed",
+        "message": "Failed to join pool"
+      },
+      "leaveConfirm": {
+        "title": "Leave Pool Confirmation",
+        "message": "Are you sure you want to leave pool \"{{name}}\"? This sends a transaction on {{chain}} from your wallet.",
+        "gasNote": "Base charges gas fees for this transaction.",
+        "confirm": "Leave"
+      },
+      "leftPool": {
+        "title": "Left Pool",
+        "message": "You have left the pool"
+      },
+      "leaveFailed": {
+        "title": "Leave Failed",
+        "message": "Failed to leave pool"
+      }
+    },
+    "joinRequests": {
+      "title": "Join Requests for {{name}}",
+      "subtitle": "Pool ID: {{id}} • Network: {{chain}}",
+      "accessDenied": "Access Denied",
+      "accessDeniedHint": "You must be a member of this pool to view join requests",
+      "notFound": "Pool not found",
+      "refresh": "Refresh",
+      "loadError": {
+        "title": "Error",
+        "message": "Failed to load join requests"
+      },
+      "voteConfirm": {
+        "title": "Vote Confirmation",
+        "approveMessage": "Are you sure you want to approve this join request?",
+        "rejectMessage": "Are you sure you want to reject this join request?",
+        "approve": "Approve",
+        "reject": "Reject"
+      },
+      "voteSubmitted": {
+        "title": "Vote Submitted",
+        "approved": "You have approved the join request",
+        "rejected": "You have rejected the join request"
+      },
+      "voteFailed": {
+        "title": "Vote Failed",
+        "message": "Failed to submit vote"
+      },
+      "request": "Join Request #{{n}}",
+      "account": "Account: {{account}}",
+      "peerId": "Peer ID: {{peerId}}",
+      "submitted": "Submitted: {{date}}",
+      "approvals": "Approvals: {{n}}",
+      "rejections": "Rejections: {{n}}",
+      "approve": "Approve",
+      "reject": "Reject",
+      "statusApproved": "✓ Approved",
+      "statusRejected": "✗ Rejected/Cancelled",
+      "none": "No Join Requests",
+      "noneHint": "There are currently no pending join requests for this pool",
+      "devNote": "Note: Join request management is currently in development. This screen will show actual join requests once the backend integration is complete."
+    },
+    "dapps": {
+      "title": "Connected dApps",
+      "add": "Add dApp",
+      "noBlox": "No Blox selected",
+      "empty": "No connected dApps yet",
+      "emptyHint": "Authorize a dApp with the + button, or open FxBlox from the dApp to pair it.",
+      "settings": "{{name}} settings",
+      "authorizeTitle": "Authorize dApp",
+      "selectBlox": "Select blox",
+      "appName": "dApp Name",
+      "bundleId": "Bundle Id",
+      "peerId": "Peer Id",
+      "accountId": "App Fula Account",
+      "addAndAuthorize": "Add and Authorize",
+      "initializingFula": "Initialing fula..",
+      "invalidBlox": "Selected Blox's peerId is invalid!",
+      "authorized": {
+        "title": "Authorized!",
+        "message": "Now you navigate to the {{app}}, to add the blox address!",
+        "ok": "Ok"
+      },
+      "openApp": "Open {{app}}",
+      "error": "error",
+      "currentUse": "Current use",
+      "gb": "{{value}} GB",
+      "lastUpdate": "Last update",
+      "clearData": "Clear app data from Blox",
+      "done": "Done",
+      "comingSoon": "Coming soon",
+      "clear": {
+        "title": "Are you sure you want to remove all File Sync data?",
+        "message": "Data from File Sync will no longer be backed up to Home Blox Setup.",
+        "cancel": "Cancel",
+        "confirm": "Confirm"
+      },
+      "logoAlt": "{{name}} logo"
+    },
+    "about": {
+      "title": "About",
+      "privacy": "Privacy",
+      "body": "Functionland's FxBlox hardware is managed and used by the File Sync and Blox apps. Blox and File Sync can be used independently of each other. The Blox app is responsible for managing, controlling, and configuring the FxBlox hardware as well as the setup / linking of wallets for receiving Fula (rewards) tokens. If you have FxBlox hardware, you will need the Blox app. The File Sync app is responsible for utilizing the FxBlox hardware as a decentralized storage solution for your data.",
+      "termsPrefix": "By using this application you agree to our terms of service available at ",
+      "termsLink": "https://fx.land/terms",
+      "termsSuffix": " and subject to get updated within applicable laws.",
+      "storage": {
+        "title": "Storage",
+        "persisted": "Persistent storage is enabled: the browser will not evict your identity and Blox list under storage pressure.",
+        "notPersisted": "This browser has not granted persistent storage. Your identity, linked wallet and Blox list could be evicted under storage pressure — you can set up again with the same password and wallet.",
+        "unknown": "Persistent storage status could not be determined in this browser."
+      }
+    },
+    "bloxLogs": {
+      "title": "Blox Logs",
+      "containerName": "Container Name",
+      "selectContainer": "Select container name",
+      "tailPlaceholder": "Number of rows in log",
+      "otherPlaceholder": "Name of log",
+      "logTitle": "Last {{count}} lines of log for {{name}}",
+      "copy": "Copy log",
+      "refresh": "Refresh log",
+      "fetchError": "Error in fetch log",
+      "fulaNotReady": "Waiting for the Blox connection…",
+      "options": {
+        "goFula": "Go-Fula",
+        "node": "Node",
+        "ipfs": "IPFS",
+        "ipfsCluster": "IPFS Cluster",
+        "fx": "Fx",
+        "serviceLogs": "Service Logs",
+        "other": "Other"
+      }
+    },
+    "autopin": {
+      "title": "Auto-Pin Pairing",
+      "deepLinkIntro": "FxFiles wants to enable auto-pinning on your blox. This will automatically pin your uploaded files to <bold>{{blox}}</bold>, allowing you to download them directly from your local network.",
+      "missingParams": "Missing pairing parameters",
+      "invalidToken": "The pairing token is missing or too long.",
+      "invalidEndpoint": "The endpoint must be an https:// URL.",
+      "invalidReturnUrl": "The return URL must be an https:// or fxfiles:// template containing $secret, $hardwareId, $bloxPeerId and $bloxName.",
+      "unexpectedResponse": "Unexpected response from blox",
+      "enable": "Enable Auto-Pin",
+      "pairing": "Pairing...",
+      "successBanner": "Auto-pinning is enabled! Your files will be automatically pinned to this blox.",
+      "alreadyPaired": {
+        "title": "Already Paired",
+        "message": "Auto-pinning was already enabled on {{blox}}."
+      },
+      "paired": {
+        "title": "Pairing Successful",
+        "message": "Auto-pinning is now enabled on {{blox}}."
+      },
+      "returnQuestion": "{{message}} Return to FxFiles?",
+      "stayHere": "Stay Here",
+      "openFxFiles": "Open FxFiles",
+      "manualIntro": "Scan a QR code or enter the API key and endpoint manually to pair an app for auto-pinning.",
+      "scanQr": "Scan QR Code",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "Enter API key",
+      "endpoint": "Endpoint",
+      "endpointPlaceholder": "Enter endpoint URL",
+      "fillBoth": "Please fill in both API Key and Endpoint",
+      "pairingSecret": "Pairing Secret",
+      "copy": "Copy",
+      "copied": "Copied!",
+      "getSecret": "Get Secret",
+      "gettingSecret": "Getting Secret...",
+      "defaultBloxName": "My Blox",
+      "dAppName": "FxFiles Auto-Pin",
+      "qr": {
+        "title": "Scan QR Code",
+        "loadingCamera": "Loading camera...",
+        "cameraDenied": "Camera permission denied. Please enable it in your browser settings.",
+        "cameraUnavailable": "Camera is not available in this browser. Upload a QR code image instead.",
+        "uploadImage": "Upload QR image",
+        "noQrInImage": "No QR code found in the image.",
+        "missingFields": "QR code missing \"api\" or \"endpoint\" fields",
+        "invalidFormat": "Invalid QR code format. Expected JSON with \"api\" and \"endpoint\".",
+        "cancel": "Cancel",
+        "videoLabel": "Camera preview"
+      }
     }
   }
 }

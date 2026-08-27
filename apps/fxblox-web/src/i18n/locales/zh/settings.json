@@ -32,6 +32,461 @@
       "confirm": "退出登录",
       "cancel": "取消",
       "failed": "退出登录失败"
+    },
+    "common": {
+      "back": "返回",
+      "cancel": "取消",
+      "save": "保存",
+      "edit": "编辑",
+      "done": "完成",
+      "confirm": "确认",
+      "ok": "确定",
+      "retry": "重试",
+      "refresh": "刷新",
+      "copy": "复制",
+      "copied": "已复制！",
+      "error": "错误",
+      "unknownError": "未知错误"
+    },
+    "bloxStatusMonitor": {
+      "title": "Blox 状态监控",
+      "checkInterval": "检查间隔",
+      "description": "启用后，应用会定期检查您的 Blox 是否可访问，并在有 Blox 断开连接时通知您。",
+      "webNote": "注意：在浏览器中，这些检查仅在此标签页打开时运行——没有后台执行。每次 Blox 检查大约需要 30 秒。",
+      "options": {
+        "0": "已禁用",
+        "480": "每 8 小时",
+        "1440": "每 24 小时"
+      },
+      "lastRun": "上次检查：{{time}}",
+      "neverRun": "尚未运行过检查",
+      "runNow": "立即检查",
+      "running": "检查中…"
+    },
+    "mode": {
+      "title": "显示模式",
+      "colorScheme": "配色方案",
+      "light": "浅色",
+      "dark": "深色",
+      "previewAlt": "{{mode}}模式预览",
+      "autoTitle": "自动深色模式",
+      "autoDescription": "使用系统的浅色/深色模式设置。",
+      "language": "语言",
+      "languageEn": "English",
+      "languageZh": "中文 (Chinese)",
+      "debugTitle": "调试模式",
+      "debugDescription": "启用日志以便支持团队排查问题",
+      "preferBluetoothTitle": "优先使用蓝牙",
+      "preferBluetoothDescription": "跳过本地网络（热点）连接，使用 Web 蓝牙进行 Blox 设置和命令。"
+    },
+    "chain": {
+      "title": "链选择",
+      "disconnectWallet": "断开钱包",
+      "connectWallet": "连接钱包",
+      "switchingChain": "正在切换链...",
+      "manualWalletStored": "已存储手动钱包",
+      "walletAccount": "钱包账户",
+      "connectedViaWallet": "通过钱包连接",
+      "manualSignatureWallet": "手动签名钱包",
+      "noWallet": "未连接钱包。请连接钱包或手动输入钱包地址。",
+      "walletAddress": "钱包地址",
+      "walletAddressPlaceholder": "0x...",
+      "addressSaved": {
+        "title": "钱包地址已保存",
+        "message": "您的钱包地址已保存"
+      },
+      "invalidAddress": {
+        "title": "地址无效",
+        "message": "请输入以 0x 开头的有效以太坊地址"
+      },
+      "selectNetwork": "选择用于矿池操作的区块链网络：",
+      "skaleDescription": "默认网络 • 零 Gas 费 • 无需授权",
+      "baseDescription": "需要授权码 • 收取 Gas 费",
+      "authorizedSuffix": " • 已授权 ✓",
+      "enterAuthCode": "输入 Base 网络授权码：",
+      "authCodePlaceholder": "授权码",
+      "authorize": "授权",
+      "invalidCode": {
+        "title": "授权码无效",
+        "message": "请输入正确的授权码"
+      },
+      "resetBaseAuth": "重置 Base 授权",
+      "resetConfirm": {
+        "title": "重置 Base 授权",
+        "message": "确定要重置 Base 网络授权吗？再次使用 Base 网络时需要重新输入授权码。",
+        "confirm": "重置",
+        "cancel": "取消"
+      },
+      "resetDone": {
+        "title": "授权已重置",
+        "message": "Base 网络授权已重置"
+      },
+      "chainUpdated": {
+        "title": "链已更新",
+        "messageConnected": "已切换到 {{chain}}。请使用下方的通知将钱包连接到此网络。",
+        "messageDisconnected": "已切换到 {{chain}}。连接钱包以使用此网络。"
+      },
+      "currentSelection": "当前选择：",
+      "currentSelectionHint": "所有矿池操作都将使用此网络"
+    },
+    "walletNotification": {
+      "connect": {
+        "title": "连接您的钱包",
+        "message": "您需要连接钱包才能继续交易并查看您的数据。",
+        "button": "连接钱包",
+        "loading": "连接中..."
+      },
+      "network": {
+        "title": "切换到 {{network}}",
+        "message": "应用已配置为 {{network}}，但您的钱包位于其他网络。请切换到 {{network}} 以继续。",
+        "button": "切换到 {{network}}",
+        "switching": "切换中...",
+        "adding": "正在添加网络..."
+      },
+      "dismiss": "关闭"
+    },
+    "pools": {
+      "title": "矿池",
+      "networkStatus": "网络状态",
+      "connected": "已连接",
+      "disconnected": "已断开",
+      "account": "账户：{{account}}",
+      "searchPlaceholder": "搜索矿池...",
+      "refresh": "刷新",
+      "retry": "重试",
+      "errorLoading": "加载矿池出错！",
+      "empty": "未找到矿池",
+      "emptyHint": "连接钱包并加载列表后，矿池会显示在这里。",
+      "loading": "正在加载矿池",
+      "viewDetails": "查看详情",
+      "selected": "已选择",
+      "walletNotConnected": {
+        "title": "钱包未连接",
+        "message": "请连接钱包或手动签名以查看矿池"
+      },
+      "errorGettingPools": "获取矿池出错",
+      "leaveConfirm": {
+        "title": "离开矿池",
+        "message": "确定要离开 {{chain}} 上的矿池“{{name}}”吗？这将从您的钱包发送一笔交易。",
+        "gasNote": "Base 网络会为此交易收取 Gas 费。",
+        "confirm": "离开"
+      },
+      "cancelConfirm": {
+        "title": "取消加入请求",
+        "message": "取消您对 {{chain}} 上矿池“{{name}}”的加入请求？这将从您的钱包发送一笔交易。",
+        "confirm": "取消请求",
+        "keep": "保留请求"
+      },
+      "joinRequestCancelled": {
+        "title": "加入请求已取消",
+        "message": "您的加入请求已取消"
+      },
+      "errorCancelling": "取消矿池加入请求出错",
+      "networkSwitchRequired": {
+        "title": "需要切换网络",
+        "message": "请使用上方的网络通知切换到正确的网络，然后重试。"
+      }
+    },
+    "poolCard": {
+      "id": "ID：{{id}}",
+      "tag": "家庭 Blox 设置",
+      "location": "位置",
+      "bloxStatus": "Blox 状态",
+      "bloxConnected": "🟢 已连接",
+      "bloxDisconnected": "🔴 已断开",
+      "status": "状态",
+      "joined": "已加入",
+      "requested": "已申请（投票：{{votes}}/{{voters}}）",
+      "votingStatus": "投票状态",
+      "buttons": {
+        "cancel": "取消",
+        "leavePool": "离开矿池",
+        "bloxDisconnected": "Blox 已断开",
+        "resendContract": "重新发送（合约）",
+        "resendJoin": "重新发送加入",
+        "joinContract": "加入（合约）",
+        "join": "加入",
+        "cancelRequest": "取消请求",
+        "forceRejoin": "强制重新加入"
+      },
+      "joinStatus": "加入状态：",
+      "bloxConfiguration": "• Blox 配置：{{state}}",
+      "poolRegistration": "• 矿池注册：{{state}}",
+      "complete": "✓ 完成",
+      "pending": "✗ 待处理",
+      "bloxError": "Blox 错误：{{error}}",
+      "apiError": "API 错误：{{error}}",
+      "walletNotConnected": {
+        "title": "钱包未连接",
+        "message": "请先连接您的钱包。"
+      },
+      "bloxPeerIdMissing": {
+        "title": "缺少 Blox Peer ID",
+        "message": "Blox peer ID 不可用。"
+      },
+      "joinConfirm": {
+        "title": "加入矿池",
+        "message": "确定要为 Blox：{{blox}} 加入 {{chain}} 上的矿池：{{name}} 吗？",
+        "pcMessage": "加入矿池“{{name}}”需要锁定 {{tokens}} FULA 代币。\n\n系统会要求您批准代币转账，然后确认加入交易。\n\n是否继续？",
+        "confirm": "加入"
+      },
+      "cancelled": {
+        "title": "已取消",
+        "message": "加入操作已取消。您可以重试。"
+      },
+      "timeout": {
+        "title": "超时",
+        "message": "加入操作超时。请检查您的交易状态，必要时重试。"
+      },
+      "joined_toast": {
+        "title": "成功加入矿池",
+        "transaction": "交易：{{hash}}...",
+        "member": "您现在是该矿池的成员！"
+      },
+      "submitted": {
+        "title": "加入请求已提交",
+        "message": "您的加入请求已提交。处理可能需要最多 1 小时。"
+      },
+      "partial": {
+        "title": "部分加入完成",
+        "message": "Blox 配置已更新。请点击“重新发送加入”以完成流程。"
+      },
+      "notRegistered": {
+        "title": "Blox 未注册",
+        "message": "您的 Blox 尚未注册。请联系 sales@fx.land 或注册您的 Blox。",
+        "contactSales": "联系销售",
+        "registerBlox": "注册 Blox",
+        "ok": "确定"
+      },
+      "joinFailed": {
+        "title": "加入矿池失败",
+        "default": "加入失败",
+        "requestFailed": "加入请求失败"
+      },
+      "resendFailed": {
+        "title": "重新发送加入失败"
+      },
+      "rejoined": {
+        "title": "已重新加入矿池",
+        "message": "矿池 ID {{id}} 已在您的 Blox 上重新设置。"
+      },
+      "rejoinFailed": {
+        "title": "重新加入失败",
+        "message": "无法在 Blox 上重新加入矿池。"
+      }
+    },
+    "poolDetails": {
+      "title": "矿池详情",
+      "notFound": "未找到矿池",
+      "notFoundHint": "此矿池不在已加载的列表中。请刷新矿池列表或检查矿池 ID。",
+      "poolId": "矿池 ID",
+      "region": "区域",
+      "network": "网络",
+      "members": "成员",
+      "maxMembers": "最大成员数",
+      "requiredTokens": "所需代币",
+      "fula": "{{amount}} FULA",
+      "leavePool": "离开矿池",
+      "forceRejoin": "强制重新加入",
+      "joinPool": "加入矿池",
+      "joinRequests": "加入请求",
+      "joinRequestsComingSoon": "加入请求管理功能即将推出",
+      "membersCount": "成员（{{count}}）",
+      "you": "（您）",
+      "noMembers": "未找到成员",
+      "refresh": "刷新",
+      "loadError": {
+        "title": "错误",
+        "message": "无法加载矿池详情"
+      },
+      "joinConfirm": {
+        "title": "加入矿池确认",
+        "message": "确定要加入 {{chain}} 上的矿池“{{name}}”吗？",
+        "confirm": "加入"
+      },
+      "joinSent": {
+        "title": "加入请求已发送"
+      },
+      "joinFailed": {
+        "title": "加入失败",
+        "message": "无法加入矿池"
+      },
+      "leaveConfirm": {
+        "title": "离开矿池确认",
+        "message": "确定要离开矿池“{{name}}”吗？这将从您的钱包在 {{chain}} 上发送一笔交易。",
+        "gasNote": "Base 网络会为此交易收取 Gas 费。",
+        "confirm": "离开"
+      },
+      "leftPool": {
+        "title": "已离开矿池",
+        "message": "您已离开该矿池"
+      },
+      "leaveFailed": {
+        "title": "离开失败",
+        "message": "无法离开矿池"
+      }
+    },
+    "joinRequests": {
+      "title": "{{name}} 的加入请求",
+      "subtitle": "矿池 ID：{{id}} • 网络：{{chain}}",
+      "accessDenied": "拒绝访问",
+      "accessDeniedHint": "您必须是该矿池的成员才能查看加入请求",
+      "notFound": "未找到矿池",
+      "refresh": "刷新",
+      "loadError": {
+        "title": "错误",
+        "message": "无法加载加入请求"
+      },
+      "voteConfirm": {
+        "title": "投票确认",
+        "approveMessage": "确定要批准此加入请求吗？",
+        "rejectMessage": "确定要拒绝此加入请求吗？",
+        "approve": "批准",
+        "reject": "拒绝"
+      },
+      "voteSubmitted": {
+        "title": "投票已提交",
+        "approved": "您已批准该加入请求",
+        "rejected": "您已拒绝该加入请求"
+      },
+      "voteFailed": {
+        "title": "投票失败",
+        "message": "无法提交投票"
+      },
+      "request": "加入请求 #{{n}}",
+      "account": "账户：{{account}}",
+      "peerId": "Peer ID：{{peerId}}",
+      "submitted": "提交时间：{{date}}",
+      "approvals": "批准：{{n}}",
+      "rejections": "拒绝：{{n}}",
+      "approve": "批准",
+      "reject": "拒绝",
+      "statusApproved": "✓ 已批准",
+      "statusRejected": "✗ 已拒绝/已取消",
+      "none": "没有加入请求",
+      "noneHint": "该矿池当前没有待处理的加入请求",
+      "devNote": "注意：加入请求管理功能目前正在开发中。后端集成完成后，此页面将显示实际的加入请求。"
+    },
+    "dapps": {
+      "title": "已连接的 dApp",
+      "add": "添加 dApp",
+      "noBlox": "未选择 Blox",
+      "empty": "还没有已连接的 dApp",
+      "emptyHint": "使用 + 按钮授权一个 dApp，或从 dApp 打开 FxBlox 进行配对。",
+      "settings": "{{name}} 设置",
+      "authorizeTitle": "授权 dApp",
+      "selectBlox": "选择 Blox",
+      "appName": "dApp 名称",
+      "bundleId": "Bundle Id",
+      "peerId": "Peer Id",
+      "accountId": "应用 Fula 账户",
+      "addAndAuthorize": "添加并授权",
+      "initializingFula": "正在初始化 fula..",
+      "invalidBlox": "所选 Blox 的 peerId 无效！",
+      "authorized": {
+        "title": "已授权！",
+        "message": "现在请前往 {{app}} 添加 Blox 地址！",
+        "ok": "确定"
+      },
+      "openApp": "打开 {{app}}",
+      "error": "错误",
+      "currentUse": "当前使用量",
+      "gb": "{{value}} GB",
+      "lastUpdate": "最后更新",
+      "clearData": "从 Blox 清除应用数据",
+      "done": "完成",
+      "comingSoon": "即将推出",
+      "clear": {
+        "title": "确定要移除所有 File Sync 数据吗？",
+        "message": "File Sync 的数据将不再备份到家庭 Blox 设置。",
+        "cancel": "取消",
+        "confirm": "确认"
+      },
+      "logoAlt": "{{name}} 图标"
+    },
+    "about": {
+      "title": "关于",
+      "privacy": "隐私",
+      "body": "Functionland 的 FxBlox 硬件由 File Sync 和 Blox 应用管理和使用。Blox 和 File Sync 可以彼此独立使用。Blox 应用负责管理、控制和配置 FxBlox 硬件，以及设置/关联用于接收 Fula（奖励）代币的钱包。如果您拥有 FxBlox 硬件，则需要 Blox 应用。File Sync 应用负责将 FxBlox 硬件用作您数据的去中心化存储解决方案。",
+      "termsPrefix": "使用本应用即表示您同意我们的服务条款，条款见 ",
+      "termsLink": "https://fx.land/terms",
+      "termsSuffix": "，并可能在适用法律范围内更新。",
+      "storage": {
+        "title": "存储",
+        "persisted": "已启用持久存储：浏览器不会在存储压力下清除您的身份和 Blox 列表。",
+        "notPersisted": "此浏览器尚未授予持久存储。在存储压力下，您的身份、已关联的钱包和 Blox 列表可能会被清除——您可以使用相同的密码和钱包重新设置。",
+        "unknown": "无法在此浏览器中确定持久存储状态。"
+      }
+    },
+    "bloxLogs": {
+      "title": "Blox 日志",
+      "containerName": "容器名称",
+      "selectContainer": "选择容器名称",
+      "tailPlaceholder": "日志行数",
+      "otherPlaceholder": "日志名称",
+      "logTitle": "{{name}} 的最后 {{count}} 行日志",
+      "copy": "复制日志",
+      "refresh": "刷新日志",
+      "fetchError": "获取日志出错",
+      "fulaNotReady": "正在等待 Blox 连接…",
+      "options": {
+        "goFula": "Go-Fula",
+        "node": "Node",
+        "ipfs": "IPFS",
+        "ipfsCluster": "IPFS Cluster",
+        "fx": "Fx",
+        "serviceLogs": "服务日志",
+        "other": "其他"
+      }
+    },
+    "autopin": {
+      "title": "自动固定配对",
+      "deepLinkIntro": "FxFiles 想在您的 Blox 上启用自动固定。这将自动把您上传的文件固定到 <bold>{{blox}}</bold>，让您可以直接从本地网络下载它们。",
+      "missingParams": "缺少配对参数",
+      "invalidToken": "配对令牌缺失或过长。",
+      "invalidEndpoint": "端点必须是 https:// URL。",
+      "invalidReturnUrl": "返回 URL 必须是包含 $secret、$hardwareId、$bloxPeerId 和 $bloxName 的 https:// 或 fxfiles:// 模板。",
+      "unexpectedResponse": "Blox 返回了意外的响应",
+      "enable": "启用自动固定",
+      "pairing": "配对中...",
+      "successBanner": "自动固定已启用！您的文件将自动固定到此 Blox。",
+      "alreadyPaired": {
+        "title": "已配对",
+        "message": "{{blox}} 上已启用自动固定。"
+      },
+      "paired": {
+        "title": "配对成功",
+        "message": "{{blox}} 上现已启用自动固定。"
+      },
+      "returnQuestion": "{{message}} 返回 FxFiles？",
+      "stayHere": "留在此处",
+      "openFxFiles": "打开 FxFiles",
+      "manualIntro": "扫描二维码，或手动输入 API 密钥和端点，以配对一个用于自动固定的应用。",
+      "scanQr": "扫描二维码",
+      "apiKey": "API 密钥",
+      "apiKeyPlaceholder": "输入 API 密钥",
+      "endpoint": "端点",
+      "endpointPlaceholder": "输入端点 URL",
+      "fillBoth": "请同时填写 API 密钥和端点",
+      "pairingSecret": "配对密钥",
+      "copy": "复制",
+      "copied": "已复制！",
+      "getSecret": "获取密钥",
+      "gettingSecret": "正在获取密钥...",
+      "defaultBloxName": "我的 Blox",
+      "dAppName": "FxFiles Auto-Pin",
+      "qr": {
+        "title": "扫描二维码",
+        "loadingCamera": "正在加载相机...",
+        "cameraDenied": "相机权限被拒绝。请在浏览器设置中启用。",
+        "cameraUnavailable": "此浏览器无法使用相机。请改为上传二维码图片。",
+        "uploadImage": "上传二维码图片",
+        "noQrInImage": "图片中未找到二维码。",
+        "missingFields": "二维码缺少 \"api\" 或 \"endpoint\" 字段",
+        "invalidFormat": "二维码格式无效。应为包含 \"api\" 和 \"endpoint\" 的 JSON。",
+        "cancel": "取消",
+        "videoLabel": "相机预览"
+      }
     }
   }
 }
