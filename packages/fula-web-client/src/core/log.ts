@@ -58,6 +58,25 @@ function safeData(data: unknown): unknown {
   return data;
 }
 
+/**
+ * Failure codes that mean "the caller asked too early", not "something went wrong". The protocol modules are
+ * verbatim ports of react-native-fula and log every rejection at `error`, but on the web a screen routinely
+ * mounts and queries before `newClient()` has finished (or after `shutdown()`), and callers are expected to
+ * handle these — they arrive as a typed `FulaWebError.code`. Mirroring them as console errors makes an
+ * ordinary page load look broken and trips the E2E "no console errors" contract.
+ */
+const PRECONDITION_CODES = new Set(['NOT_INITIALIZED', 'CLIENT_CLOSED']);
+
+function isPrecondition(data: unknown): boolean {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'code' in data &&
+    typeof (data as { code?: unknown }).code === 'string' &&
+    PRECONDITION_CODES.has((data as { code: string }).code)
+  );
+}
+
 function push(level: LogLevel, scope: string, msg: string, data?: unknown): void {
   const entry: LogEntry = { t: Date.now(), level, scope, msg };
   if (data !== undefined) entry.data = safeData(data);
@@ -68,9 +87,19 @@ function push(level: LogLevel, scope: string, msg: string, data?: unknown): void
   } catch {
     // a broken sink must never break the client
   }
-  if (debugEnabled || level === 'error') {
+  // The ring buffer keeps the caller's level (diagnostics uploads still show the full picture); only the
+  // console mirror is demoted, because that is what developers and the E2E console contract read.
+  const consoleLevel: LogLevel = level === 'error' && isPrecondition(entry.data) ? 'warn' : level;
+  if (debugEnabled || consoleLevel === 'error') {
     const line = `[fula:${scope}] ${msg}`;
-    const fn = level === 'debug' ? console.debug : level === 'info' ? console.info : level === 'warn' ? console.warn : console.error;
+    const fn =
+      consoleLevel === 'debug'
+        ? console.debug
+        : consoleLevel === 'info'
+          ? console.info
+          : consoleLevel === 'warn'
+            ? console.warn
+            : console.error;
     if (entry.data !== undefined) fn(line, entry.data);
     else fn(line);
   }

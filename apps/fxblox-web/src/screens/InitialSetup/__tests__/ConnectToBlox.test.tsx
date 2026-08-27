@@ -74,15 +74,30 @@ describe('ConnectToBlox', () => {
   });
 
   it('after a failed check the background poll succeeding offers Continue instead of navigating', async () => {
-    lanFetchMock.mockRejectedValueOnce(
-      new LanHttpError('unreachable', `${API_URL}/properties`, 'unreachable'),
-    );
-    lanFetchMock.mockResolvedValue(new Response('{"status":"ready"}'));
+    // Route by URL and by an explicit gate rather than by call order. The explicit check (HEAD /properties)
+    // and the background poll (GET /readiness) share this mock, and the screen CLEARS the error card the
+    // moment the poll reports reachable — so a poll that wins the race would delete the very card this test
+    // asserts. Keep readiness failing until the card has been observed, then let it succeed.
+    let readinessOk = false;
+    let propertiesCalls = 0;
+    lanFetchMock.mockImplementation(async (url: unknown) => {
+      const target = String(url);
+      if (target.endsWith('/properties')) {
+        propertiesCalls += 1;
+        if (propertiesCalls === 1) {
+          throw new LanHttpError('unreachable', `${API_URL}/properties`, 'unreachable');
+        }
+        return new Response('');
+      }
+      if (!readinessOk) throw new LanHttpError('unreachable', target, 'unreachable');
+      return new Response('{"status":"ready"}');
+    });
     const { router } = await renderSetupAt('/setup/connect-blox');
     await userEvent.click(await screen.findByTestId('hotspot-check'));
     expect(await screen.findByTestId('lan-error-unreachable')).toBeInTheDocument();
-    // useHotspotReachable polls GET /readiness; the first tick succeeds.
-    const cont = await screen.findByTestId('setup-continue');
+    // Now the Blox comes up: useHotspotReachable polls GET /readiness every 3 s and the next tick succeeds.
+    readinessOk = true;
+    const cont = await screen.findByTestId('setup-continue', undefined, { timeout: 8000 });
     expect(router.state.location.pathname).toBe('/setup/connect-blox');
     expect(screen.getByText('Now you are connected to Blox. Please wait...')).toBeInTheDocument();
     await userEvent.click(cont);
@@ -95,7 +110,11 @@ describe('ConnectToBlox', () => {
     const { router } = await renderSetupAt('/setup/connect-blox');
     await userEvent.click(await screen.findByTestId('connect-ble'));
     await waitFor(() => expect(router.state.location.pathname).toBe('/setup/set-authorizer'));
-    expect(bleState().written).toEqual(['properties']);
+    // `written` is a session-wide log and SetBloxAuthorizer fetches the real properties over the same session
+    // as soon as it mounts (api/bloxHardware.ts), so asserting an exact length here races the next screen.
+    // What this test owns is that the connect step probed over BLE and sent nothing else.
+    expect(bleState().written[0]).toBe('properties');
+    expect(bleState().written.every((cmd) => cmd === 'properties')).toBe(true);
     expect(BleRegistry.connectedPeripherals().map((p) => p.id)).toEqual(['ble-device-1']);
     expect(lanFetchMock).not.toHaveBeenCalled();
   });

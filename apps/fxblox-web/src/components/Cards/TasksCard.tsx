@@ -32,8 +32,9 @@ export function TasksCard({ className, testID = 'tasks-card' }: TasksCardProps) 
   const { t } = useTranslation('tasks');
   const { t: tMain } = useTranslation();
   const navigate = useNavigate();
-  // Memoised: `useTasksLogic` derives its effect dependencies from this callback, so a new identity on every
-  // render would re-run the effect in a loop.
+  // Memoised so the hook's derived task list keeps its identity across renders. (This used to be load-bearing:
+  // an inline arrow here re-ran the hook's effect every render and starved React's transitions — see
+  // useTasksLogic. The hook no longer depends on it for correctness, only for memo hits.)
   const navigateToPools = useCallback(() => void navigate(paths.settings.pools), [navigate]);
   const { tasks, completedTasks, loading, refreshing, handleTaskPress, refreshTasks } = useTasksLogic({
     navigateToPools,

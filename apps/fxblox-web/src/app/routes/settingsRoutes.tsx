@@ -39,7 +39,10 @@ export function buildSettingsRoutes(options: SettingsRoutesOptions = {}): RouteO
         },
         {
           path: 'chain',
-          lazy: lazyWalletScreen(() => import('@/screens/Settings/ChainSelection')),
+          lazy: lazyWalletScreen(() => import('@/screens/Settings/ChainSelection'), {
+            screen: 'chain-selection',
+            titleKey: 'settings.chain.title',
+          }),
           handle: h('settings.menu.chainSelection'),
         },
         {
@@ -47,14 +50,31 @@ export function buildSettingsRoutes(options: SettingsRoutesOptions = {}): RouteO
           element: <PoolsLayout />,
           handle: h('settings.menu.pools'),
           children: [
-            { index: true, lazy: lazyWalletScreen(() => import('@/screens/Settings/Pools/Pools')) },
+            {
+              index: true,
+              lazy: lazyWalletScreen(() => import('@/screens/Settings/Pools/Pools'), {
+                screen: 'pools',
+                titleKey: 'settings.pools.title',
+                wide: true,
+              }),
+            },
             {
               path: ':poolId',
-              lazy: lazyWalletScreen(() => import('@/screens/Settings/Pools/PoolDetails')),
+              lazy: lazyWalletScreen(() => import('@/screens/Settings/Pools/PoolDetails'), {
+                screen: 'pool-details',
+                titleKey: 'settings.poolDetails.title',
+                backTo: paths.settings.pools,
+                backOnDesktopWhenNarrow: true,
+              }),
             },
             {
               path: ':poolId/join-requests',
-              lazy: lazyWalletScreen(() => import('@/screens/Settings/Pools/JoinRequests')),
+              lazy: lazyWalletScreen(() => import('@/screens/Settings/Pools/JoinRequests'), {
+                screen: 'join-requests',
+                titleKey: 'settings.poolDetails.joinRequests',
+                backTo: paths.settings.pools,
+                backOnDesktopWhenNarrow: true,
+              }),
             },
           ],
         },
