@@ -1,11 +1,15 @@
-# Auto-pin pairing hand-off spec (v1)
+# Auto-pin pairing hand-off spec (v1.1)
 
 Contract between **FxFiles** (mobile, desktop, files.fx.land) and **FxBlox** (mobile app or blox.fx.land).
 
 ## Outbound (FxFiles → FxBlox)
 
 Mobile deep link (unchanged): `fxblox://autopin-pair?token=<t>&endpoint=<e>&returnUrl=<r>`
-Web: `https://blox.fx.land/autopin-pair?token=<t>&endpoint=<e>&returnUrl=<r>`
+Web (v1.1, **fragment carrier**): `https://blox.fx.land/autopin-pair#token=<t>&endpoint=<e>&returnUrl=<r>`
+
+The cloud JWT is a bearer credential, so on the web it rides in the URL fragment: fragments are never sent to the
+server/CDN, never logged there, and never leak via `Referer`. blox.fx.land reads the fragment first and accepts the
+v1 query form (`?token=…`) as a fallback for older senders.
 
 | Param | Value | Validation on the FxBlox side |
 |---|---|---|
@@ -27,4 +31,12 @@ Legacy template still accepted: `fxfiles://autopin-complete?secret=$secret&hardw
 
 ## Versioning
 
-`v1` is implied. A future change adds `&v=2` to the outbound URL; receivers must ignore unknown params.
+- v1: query carrier on the web (`?token=…`) — accepted by receivers as a fallback.
+- v1.1 (current): fragment carrier on the web (`#token=…`).
+A future change adds `&v=2` to the outbound URL; receivers must ignore unknown params.
+
+## Implementation status
+
+- FxFiles-web: branch `feat/blox-web-handoff` (sender, forwarder page, web receiver, native universal-link arm).
+- FxBlox-web: `/autopin-pair` route reads the fragment first, then the query; validates params; substitutes the four
+  placeholders with `encodeURIComponent`; returns via a user click (`location.assign`).
