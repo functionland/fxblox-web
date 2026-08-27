@@ -3,6 +3,7 @@
 // eth_estimateGas, eth_gasPrice, eth_sendRawTransaction / eth_sendTransaction (fake hash),
 // eth_getTransactionReceipt (status 0x1), eth_getTransactionCount, net_version.
 import http from 'node:http';
+import { pathToFileURL } from 'node:url';
 import { applyCors, json, readBody } from './cors.mjs';
 
 const CHAIN_ID = process.env.FAKE_RPC_CHAIN_ID ?? '0x79f99296'; // SKALE Europa by default
@@ -10,7 +11,7 @@ let txCounter = 0;
 
 export function startRpc({ port = 8545, host = '127.0.0.1' } = {}) {
   const server = http.createServer(async (req, res) => {
-    if (applyCors(req, res)) return;
+    if (applyCors(req, res, { mutatingGetPaths: new Set() })) return;
     const raw = await readBody(req);
     let calls;
     try {
@@ -63,7 +64,7 @@ function handle(method, params) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   startRpc({ port: Number(process.env.FAKE_RPC_PORT ?? 8545) }).then(({ port, host }) =>
     console.log(`[fake-blox] RPC listening on http://${host}:${port} (chainId ${CHAIN_ID})`),
   );

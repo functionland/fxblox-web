@@ -1,6 +1,7 @@
 // Fake Blox AI service (real one: E:\GitHub\blox-ai\src\app.py, FastAPI on :8083).
 // Streams scripted SSE events for /troubleshoot and /troubleshoot/tree; other routes return canned JSON.
 import http from 'node:http';
+import { pathToFileURL } from 'node:url';
 import { applyCors, json, readBody } from './cors.mjs';
 
 const SCENARIO = process.env.FAKE_BLOX_SCENARIO ?? '';
@@ -48,7 +49,7 @@ function scriptedSession(sessionId, prompt) {
 
 export function startAi({ port = 8083, host = '127.0.0.1' } = {}) {
   const server = http.createServer(async (req, res) => {
-    if (applyCors(req, res, { allowHeaders: 'content-type, x-fula-support', scenario: SCENARIO })) return;
+    if (applyCors(req, res, { allowHeaders: 'content-type, x-fula-support', scenario: SCENARIO, mutatingGetPaths: new Set() })) return;
     const url = new URL(req.url, 'http://x');
     const path = url.pathname;
     const raw = req.method === 'POST' ? await readBody(req) : '';
@@ -102,7 +103,7 @@ export function startAi({ port = 8083, host = '127.0.0.1' } = {}) {
   return new Promise((resolve) => server.listen(port, host, () => resolve({ server, port, host })));
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   startAi({ port: Number(process.env.FAKE_AI_PORT ?? 8083), host: process.env.FAKE_BIND ?? '127.0.0.1' }).then(({ port, host }) =>
     console.log(`[fake-blox] Blox AI listening on http://${host}:${port} (scenario: ${SCENARIO || 'default'})`),
   );

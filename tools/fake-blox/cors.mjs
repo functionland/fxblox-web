@@ -15,28 +15,36 @@ export function originAllowed(origin) {
  * (preflight answered or request rejected) and the caller must stop.
  * Requests without an Origin header (mobile app, curl, BLE proxy) are passed through untouched.
  */
-export function applyCors(req, res, { allowHeaders = 'content-type', scenario = '' } = {}) {
+// GET routes with side effects on the real WAP API; guarded via Sec-Fetch-Site (a cross-site <img> fetch has no Origin).
+const MUTATING_GET_PATHS = new Set(['/ap/enable', '/ap/disable']);
+
+export function applyCors(req, res, { allowHeaders = 'content-type', scenario = '', mutatingGetPaths = MUTATING_GET_PATHS } = {}) {
   const origin = req.headers.origin;
   if (scenario === 'old-firmware') return false; // no CORS at all, like today's Blox
-  if (!origin) return false;
+  const sfs = (req.headers['sec-fetch-site'] ?? '').toLowerCase();
+  const crossSiteFetch = sfs !== '' && sfs !== 'same-origin' && sfs !== 'none';
+  if (!origin && !crossSiteFetch) return false;
 
-  res.setHeader('Vary', 'Origin');
   const allowed = originAllowed(origin);
-  if (allowed) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', allowHeaders);
-    res.setHeader('Access-Control-Max-Age', '600');
+  if (origin) {
+    res.setHeader('Vary', 'Origin');
+    if (allowed) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', allowHeaders);
+      res.setHeader('Access-Control-Max-Age', '600');
+    }
+    if (req.method === 'OPTIONS') {
+      res.writeHead(allowed ? 204 : 403);
+      res.end();
+      return true;
+    }
   }
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(allowed ? 204 : 403);
-    res.end();
-    return true;
-  }
-
-  // Origin guard: a present-but-unlisted Origin on a state-changing method is a cross-site request → 403.
-  if (!allowed && req.method !== 'GET' && req.method !== 'HEAD') {
+  // Guard: state-changing requests from a non-allow-listed browser context → 403.
+  const path = new URL(req.url, 'http://x').pathname;
+  const mutating = (req.method !== 'GET' && req.method !== 'HEAD') || mutatingGetPaths.has(path);
+  if (mutating && !allowed) {
     res.writeHead(403, { 'content-type': 'text/plain' });
     res.end('forbidden origin');
     return true;

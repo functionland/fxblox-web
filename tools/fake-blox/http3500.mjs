@@ -2,6 +2,7 @@
 // Route table mirrors server.go:833-853. Bodies for POSTs are application/x-www-form-urlencoded (Go r.FormValue
 // reads both the query string and the body).
 import http from 'node:http';
+import { pathToFileURL } from 'node:url';
 import { applyCors, json, readBody } from './cors.mjs';
 
 const SCENARIO = process.env.FAKE_BLOX_SCENARIO ?? '';
@@ -111,7 +112,7 @@ export function startWap({ port = 3500, host = '127.0.0.1', state = createWapSta
   return new Promise((resolve) => server.listen(port, host, () => resolve({ server, state, port, host })));
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   startWap({ port: Number(process.env.FAKE_WAP_PORT ?? 3500), host: process.env.FAKE_BIND ?? '127.0.0.1' }).then(({ port, host }) =>
     console.log(`[fake-blox] WAP listening on http://${host}:${port} (scenario: ${SCENARIO || 'default'})`),
   );
