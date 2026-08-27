@@ -1,0 +1,63 @@
+/* Fx tokens as CSS custom properties (light on :root, dark under [data-theme="dark"]).
+   Values mirror libs/component-library/src/lib/theme/theme.ts. Tailwind v4 `@theme inline` wiring is added
+   with the Tailwind dependency in Phase 1; the variables below are the single source of truth either way. */
+:root {
+  --fx-background-app: #ffffff;
+  --fx-background-primary: #f8f9fa;
+  --fx-background-secondary: #e9ecef;
+  --fx-border: #ced4da;
+  --fx-border-base: #ced4da;
+  --fx-content1: #343a40;
+  --fx-content2: #495057;
+  --fx-content3: #6f767d;
+  --fx-green-pressed: #038082;
+  --fx-green-base: #049b8f;
+  --fx-green-hover: #06b597;
+  --fx-green-border: #97f7cc;
+  --fx-green-background: #cafbe0;
+  --fx-success-base: #37b24d;
+  --fx-success-muted: #d3f9d8;
+  --fx-info-base: #1c7ed6;
+  --fx-info-muted: #d0ebff;
+  --fx-warning-base: #fab005;
+  --fx-warning-muted: #fff3bf;
+  --fx-error-base: #fa4343;
+  --fx-error-muted: #ffe3e3;
+  --fx-primary: #06b597;
+  --fx-secondary: #187af9;
+  --fx-white: #ffffff;
+  --fx-radius-s: 4px;
+  --fx-radius-m: 6px;
+  --fx-radius-l: 20px;
+  --fx-font-heading: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+  --fx-font-body: 'Open Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --fx-background-app: #212529;
+  --fx-background-primary: #343a40;
+  --fx-background-secondary: #495057;
+  --fx-border: #868e96;
+  --fx-border-base: #868e96;
+  --fx-content1: #f8f9fa;
+  --fx-content2: #e9ecef;
+  --fx-content3: #ced4da;
+  --fx-green-border: #035b4c;
+  --fx-green-background: #02362d;
+  --fx-success-muted: #1c5927;
+  --fx-info-muted: #0e3f6b;
+  --fx-warning-base: #fcc419;
+  --fx-warning-muted: #806a1d;
+  --fx-error-base: #fa5252;
+  --fx-error-muted: #7d2929;
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--fx-background-app);
+  color: var(--fx-content1);
+  font-family: var(--fx-font-body);
+}

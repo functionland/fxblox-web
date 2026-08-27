@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.cache/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+Thumbs.db
+playwright-report/
+test-results/
+tools/fake-blox/.state/

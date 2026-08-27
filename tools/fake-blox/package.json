@@ -1,0 +1,10 @@
+{
+  "name": "fake-blox",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Fake Blox servers for development and Playwright: :3500 WAP (go-fula wap), :8083 Blox AI (FastAPI), JSON-RPC stub",
+  "scripts": {
+    "start": "node start.mjs"
+  }
+}
