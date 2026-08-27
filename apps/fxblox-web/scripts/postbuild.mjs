@@ -8,6 +8,13 @@ if (!existsSync(dist + 'index.html')) {
   process.exit(1);
 }
 copyFileSync(dist + 'index.html', dist + '404.html');
+// Custom domain: only emit CNAME when the deploy is for blox.fx.land (repo variable PAGES_CNAME).
+// Shipping it before the DNS record exists would make GitHub Pages redirect the github.io staging URL
+// to a dead host.
+if (process.env.PAGES_CNAME) {
+  writeFileSync(dist + 'CNAME', process.env.PAGES_CNAME.trim() + '\n');
+  console.log(`postbuild: wrote CNAME ${process.env.PAGES_CNAME.trim()}`);
+}
 writeFileSync(
   dist + 'version.json',
   JSON.stringify(

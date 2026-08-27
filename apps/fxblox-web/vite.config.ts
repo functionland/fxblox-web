@@ -5,8 +5,13 @@ import { readFileSync } from 'node:fs';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
+// Production is https://blox.fx.land (base '/'). Until that DNS record exists, deploys land on the
+// project-pages staging URL https://functionland.github.io/fxblox-web/, which needs base '/fxblox-web/'.
+// deploy.yml sets VITE_BASE from the PAGES_CNAME repo variable.
+const base = process.env.VITE_BASE ?? '/';
+
 export default defineConfig({
-  base: '/',
+  base,
   plugins: [react()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
