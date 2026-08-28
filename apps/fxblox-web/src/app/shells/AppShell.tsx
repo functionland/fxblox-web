@@ -24,6 +24,7 @@ import { Outlet } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FullScreenSpinner } from '@/components/FullScreenSpinner';
 import { ProfileSheet } from '@/components/ProfileSheet';
+import { useEnsureFulaClient } from '@/components/main/useEnsureFulaClient';
 import { useDocumentTitle } from '@/app/routeHandle';
 import { useRouteFocus } from '@/app/useRouteFocus';
 import { BottomTabs } from './BottomTabs';
@@ -63,6 +64,11 @@ export function AppShell() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileMounted, setProfileMounted] = useState(false);
 
+  // Mobile does this once at the MainTabs navigator; the web equivalent belongs here, so EVERY screen under
+  // the shell gets the client and the per-blox connection status — not only the ones that remembered to ask.
+  // No Settings screen called it, so /settings/pools showed the Blox as disconnected and disabled Join while
+  // the dashboard could talk to it perfectly well. Idempotent: one init per blox, skipped when already ready.
+  useEnsureFulaClient();
   useRouteFocus(mainRef);
   useDocumentTitle();
 
