@@ -25,4 +25,6 @@ export enum EConnectionStatus {
   bleConnecting = 'bleConnecting',
   bleConnected = 'bleConnected',
   bleFailed = 'bleFailed',
+  /** A typed LAN address did not answer. `failed` names the hotspot, which is not what was tried. */
+  lanFailed = 'lanFailed',
 }
