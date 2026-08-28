@@ -84,22 +84,31 @@ export function isLocalTarget(url: string): boolean {
   return ipIsPrivateLan(host);
 }
 
-/**
- * True when the PAGE is itself in a local address space (dev on localhost, or the app served off a LAN IP).
- *
- * `targetAddressSpace` is an assertion, not a hint: setting it makes Chrome run a Private Network Access
- * preflight and refuse the request unless the server answers it. That gate exists to protect local devices
- * from PUBLIC pages, so it is only meaningful when the page is more public than the target. Asserting it from
- * a page that is already local buys nothing and breaks the request outright — verified against a real Blox,
- * where `fetch(..., { targetAddressSpace: 'local' })` from http://127.0.0.1:5173 threw "Failed to fetch"
- * while the identical fetch without it returned 200.
- */
-export function pageIsLocal(hostname = globalThis.location?.hostname ?? ''): boolean {
-  const host = hostname.replace(/^\[|\]$/g, '');
+/** Loopback or `localhost` — the same machine, never a "local network" request. */
+export function isLoopbackTarget(url: string): boolean {
+  const host = hostOf(url).replace(/^\[|\]$/g, '');
   if (!host) return false;
-  if (host === 'localhost' || host.endsWith('.local')) return true;
-  if (/^127\./.test(host) || host === '::1') return true;
-  return ipIsPrivateLan(host);
+  return host === 'localhost' || /^127\./.test(host) || host === '::1';
+}
+
+/**
+ * Whether to assert `targetAddressSpace: 'local'` on a request.
+ *
+ * Chrome's Local Network Access gates on the TARGET, not on how public the page is: a page — even one served
+ * from localhost — reaching a device on the LAN is a local-network request and is blocked unless the request
+ * asserts its target address space, which is what lets Chrome prompt for permission. Both facts were measured
+ * against a real Blox from http://127.0.0.1:5173:
+ *
+ *   - target 127.0.0.1:3500  → succeeds WITHOUT the assertion, and fails outright WITH it
+ *     (same host, so there is no local-network gate to satisfy, and the assertion forces a preflight the
+ *     server has no reason to answer)
+ *   - target 192.168.2.159:3500 → fails without it, because LNA has nothing to prompt about
+ *
+ * So the discriminator is loopback vs. everything else local. An earlier version of this keyed on whether the
+ * PAGE was local, which got the localhost→LAN case exactly backwards.
+ */
+export function needsAddressSpaceAssertion(url: string): boolean {
+  return isLocalTarget(url) && !isLoopbackTarget(url);
 }
 
 export interface BuiltLanRequest {
@@ -134,8 +143,9 @@ export function buildLanRequest(url: string, init: LanRequestInit = {}): BuiltLa
     headers,
   };
   if (body !== undefined) request.body = body;
-  // Only assert the target address space when crossing INTO it from a more public page — see `pageIsLocal`.
-  if (isLocalTarget(fullUrl) && !pageIsLocal()) request.targetAddressSpace = 'local';
+  // Assert the target address space for LAN targets so Chrome can prompt; never for loopback — see
+  // `needsAddressSpaceAssertion`.
+  if (needsAddressSpaceAssertion(fullUrl)) request.targetAddressSpace = 'local';
   return { url: fullUrl, init: request };
 }
 

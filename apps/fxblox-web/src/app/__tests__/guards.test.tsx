@@ -32,8 +32,14 @@ import { useBloxsStore, useUserProfileStore } from '@/stores';
  * resolution of a route takes a couple of seconds under jsdom (measured ~2.4 s for /blox). These are routing
  * tests: they assert which route matched and which shell rendered — never a screen's copy, which belongs to the
  * screen's own test.
+ *
+ * The per-test budget must exceed ROUTE_TIMEOUT. With both at the suite default of 15 s, a route that loaded
+ * slowly under a loaded full-suite run hit the TEST timeout before its 15 s `waitFor` could resolve — so the
+ * wait could never actually be waited out, and the file failed roughly one run in two (on baseline too, not
+ * only with changes). Giving the file room makes the route waits the thing that decides the outcome.
  */
 const ROUTE_TIMEOUT = 15_000;
+vi.setConfig({ testTimeout: ROUTE_TIMEOUT * 3 });
 
 function deferred(): Deferred {
   let resolve!: () => void;
@@ -117,7 +123,11 @@ describe('guards', () => {
     await act(async () => boot.current!.resolve());
     await waitForRoute(router, '/blox');
     await expectShell('app-shell');
-    expect(screen.getByTestId('bottom-tabs')).toBeInTheDocument();
+    // `find`, not `get`: the shell commits before its navigation does, so a synchronous query here races that
+    // second commit. It failed roughly one full-suite run in two, on baseline as well as with changes.
+    expect(
+      await screen.findByTestId('bottom-tabs', undefined, { timeout: ROUTE_TIMEOUT }),
+    ).toBeInTheDocument();
     await expectScreenRendered();
   });
 

@@ -34,13 +34,10 @@ describe('isLocalTarget', () => {
 });
 
 describe('buildLanRequest — simple-request discipline', () => {
-  test('GET: cors/no-store/omit, no body (jsdom page is localhost → no targetAddressSpace)', () => {
+  test('GET: cors/no-store/omit, no body, targetAddressSpace local for the hotspot', () => {
     const { url, init } = buildLanRequest(`${AP}/properties`);
     expect(url).toBe(`${AP}/properties`);
-    expect(init).toEqual(expect.objectContaining({ method: 'GET', mode: 'cors', cache: 'no-store', credentials: 'omit' }));
-    // jsdom serves the test page from localhost, itself a local address space — see the dedicated
-    // targetAddressSpace block below for why asserting it from there breaks the request outright.
-    expect(init.targetAddressSpace).toBeUndefined();
+    expect(init).toEqual(expect.objectContaining({ method: 'GET', mode: 'cors', cache: 'no-store', credentials: 'omit', targetAddressSpace: 'local' }));
     expect(init.body).toBeUndefined();
     expect(init.headers).toEqual({});
   });
@@ -76,32 +73,34 @@ describe('buildLanRequest — simple-request discipline', () => {
 });
 
 /**
- * `targetAddressSpace` is an assertion, not a hint: Chrome answers it with a Private Network Access preflight
- * and fails the request unless the server allows it. The gate protects local devices from PUBLIC pages, so it
- * is only meaningful when the page is more public than the target.
+ * `targetAddressSpace` is an assertion, not a hint, and Chrome's Local Network Access gates on the TARGET —
+ * not on how public the page is. Both halves were measured against a real Blox from http://127.0.0.1:5173:
  *
- * Getting this wrong is not a soft failure. Verified against a real Blox: from a page on http://127.0.0.1:5173,
- * `fetch(box, { targetAddressSpace: 'local' })` threw "TypeError: Failed to fetch" while the identical fetch
- * without it returned 200 — so every LAN call from a dev build died before reaching the box.
+ *   - target 127.0.0.1:3500     → 200 WITHOUT the assertion; "TypeError: Failed to fetch" WITH it
+ *   - target 192.168.2.159:3500 → "TypeError: Failed to fetch" WITHOUT it (LNA has nothing to prompt about)
+ *
+ * So it must be set for LAN targets and never for loopback. An earlier version keyed on whether the PAGE was
+ * local, which got localhost→LAN exactly backwards and left the app unable to reach a Blox on the network.
  */
-describe('buildLanRequest — targetAddressSpace only when crossing into a local space', () => {
-  test('page on localhost → NOT set (same address space, nothing to gate)', () => {
-    vi.stubGlobal('location', { hostname: 'localhost' });
-    expect(buildLanRequest(`${AP}/properties`).init.targetAddressSpace).toBeUndefined();
+describe('buildLanRequest — targetAddressSpace keys on the target, not the page', () => {
+  test('loopback target → NOT set (same host; asserting it breaks the request)', () => {
+    expect(buildLanRequest('http://127.0.0.1:3500/properties').init.targetAddressSpace).toBeUndefined();
+    expect(buildLanRequest('http://localhost:3500/properties').init.targetAddressSpace).toBeUndefined();
   });
 
-  test('page on a LAN IP → NOT set', () => {
-    vi.stubGlobal('location', { hostname: '192.168.1.50' });
-    expect(buildLanRequest(`${AP}/properties`).init.targetAddressSpace).toBeUndefined();
-  });
-
-  test('page on the deployed public origin → set (this is the case LNA exists for)', () => {
-    vi.stubGlobal('location', { hostname: 'blox.fx.land' });
+  test('hotspot target → set', () => {
     expect(buildLanRequest(`${AP}/properties`).init.targetAddressSpace).toBe('local');
   });
 
-  test('public page to a public target → still not set', () => {
+  test('LAN target → set, even from a localhost page (the case that was broken)', () => {
+    vi.stubGlobal('location', { hostname: 'localhost' });
+    expect(buildLanRequest('http://192.168.2.159:3500/properties').init.targetAddressSpace).toBe('local');
+  });
+
+  test('public target → never set, from any page', () => {
     vi.stubGlobal('location', { hostname: 'blox.fx.land' });
+    expect(buildLanRequest('https://pools.fx.land/health').init.targetAddressSpace).toBeUndefined();
+    vi.stubGlobal('location', { hostname: 'localhost' });
     expect(buildLanRequest('https://pools.fx.land/health').init.targetAddressSpace).toBeUndefined();
   });
 });
