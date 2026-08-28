@@ -258,9 +258,15 @@ export default function ConnectToBlox() {
   return (
     <SetupScreen id="connect-blox" title={t('connectToBlox.title')}>
       <FxBox alignItems="center" gap="16">
-        <FxText variant="bodySmallRegular" color="content2" textAlign="center">
-          {t('setup.connectToBlox.intro')}
-        </FxText>
+        {/*
+          The intro promises Bluetooth and says other ways will follow. Once one of those other ways is on
+          screen it is describing a step the user has already left, so it goes with the stage it belongs to.
+        */}
+        {stage === 'bluetooth' && (
+          <FxText variant="bodySmallRegular" color="content2" textAlign="center">
+            {t('setup.connectToBlox.intro')}
+          </FxText>
+        )}
         <FxTower
           onColor="lightblue"
           onInterval={3000}
@@ -361,10 +367,12 @@ export default function ConnectToBlox() {
             {/* Step 3 — the always-works fallback. */}
             {stage === 'hotspot' && (
               <FxBox gap="8" testID="hotspot-instructions">
+                {/*
+                  One instruction, not two. The mobile app's line ("connect your PHONE to the hotspot and turn
+                  off mobile data") said the same thing again in terms that are wrong here — the browser is as
+                  often a laptop — so the web wording carries it alone.
+                */}
                 <FxText variant="bodyMediumRegular" textAlign="center" color="content1">
-                  {t('connectToBlox.hotspotInstructions')}
-                </FxText>
-                <FxText variant="bodySmallRegular" textAlign="center" color="content2">
                   {t('setup.connectToBlox.hotspotJoin')}
                 </FxText>
               </FxBox>

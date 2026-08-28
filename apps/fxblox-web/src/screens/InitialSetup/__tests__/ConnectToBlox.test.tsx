@@ -156,8 +156,10 @@ describe('ConnectToBlox', () => {
     expect(await screen.findByTestId('lan-step')).toBeInTheDocument();
     expect(screen.queryByTestId('hotspot-instructions')).toBeNull();
     expect(screen.queryByTestId('hotspot-check')).toBeNull();
+    // The status says what happened, not that something is under way: nothing is being tried at this point,
+    // the screen is waiting for the user to answer the question below it.
     expect(screen.getByTestId('connection-status')).toHaveTextContent(
-      'Unable to connect via Bluetooth, trying WiFi...',
+      "Bluetooth didn't work — let's try another way",
     );
     expect(
       await screen.findByText('Web Bluetooth is not available in this browser.'),
