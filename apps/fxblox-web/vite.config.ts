@@ -9,10 +9,11 @@ import { readFileSync } from 'node:fs';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
-// Production is https://blox.fx.land (base '/'). Until that DNS record exists, deploys land on the
-// project-pages staging URL https://docs.fx.land/fxblox-web/ (the org site's custom domain; functionland.github.io
-// redirects there), which needs base '/fxblox-web/'.
-// deploy.yml sets VITE_BASE from the PAGES_CNAME repo variable.
+// Production is https://docs.fx.land/fxblox-web/ — the functionland GitHub Pages project site, served under
+// the org's custom domain (functionland.github.io redirects there). That path prefix is why base is
+// '/fxblox-web/'. blox.fx.land was the original intent but has no Pages DNS record, so it is not used.
+// deploy.yml sets VITE_BASE from the PAGES_CNAME repo variable: setting that variable (and the matching DNS)
+// is what would move the app to its own domain at base '/'.
 const base = process.env.VITE_BASE ?? '/';
 
 // Cloud / RPC / WalletConnect hosts the service worker must never cache (NetworkOnly). LAN / hotspot targets

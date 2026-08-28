@@ -1,6 +1,7 @@
 /**
- * The browser router. `basename` = Vite's `BASE_URL` (`/` in production at blox.fx.land, `/fxblox-web/` on the
- * project-pages staging URL) without its trailing slash. Route modules are lazy (one chunk per screen).
+ * The browser router. `basename` = Vite's `BASE_URL` without its trailing slash — `/fxblox-web/` as deployed
+ * (https://docs.fx.land/fxblox-web/), `/` if the app ever moves to its own domain. Route modules are lazy
+ * (one chunk per screen).
  */
 import { createBrowserRouter } from 'react-router';
 import { appRoutes } from './routes/appRoutes';
