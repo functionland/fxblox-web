@@ -31,6 +31,21 @@ export const providerMetadata = {
   description: 'Blox hardware dApp',
   url: APP_ORIGIN,
   icons: ['https://ipfs.cloud.fx.land/gateway/bafkreigl4s3qehoblwqglo5zjjjwtzkomxg4i6gygfeqk5s5h33m5iuyra'],
+  /**
+   * Where a wallet should send the user back to after they approve.
+   *
+   * WalletConnect passes this to the wallet in the session metadata, and it is the ONLY thing a wallet has to
+   * return with. Without it a phone user approves in their wallet app and is simply left there — they have to
+   * find their way back to the browser by hand, which is what happened here.
+   *
+   * `native` is empty on purpose: this is a web app with no custom scheme. Support for `universal` varies by
+   * wallet (some return to the browser, some do nothing), so the UI must not depend on the bounce happening —
+   * see the "open your wallet" affordance in WalletSigner.
+   */
+  redirect: {
+    native: '',
+    universal: APP_ORIGIN,
+  },
 };
 
 export const baseMainnet: AppKitNetwork = {

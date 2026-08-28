@@ -44,8 +44,13 @@ vi.mock('@/utils/helper', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/utils/helper')>();
   return { ...actual, getMyDID: () => 'did:key:zTestIdentity', initFula: vi.fn() };
 });
+vi.mock('@/platform/linking', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/linking')>();
+  return { ...actual, assign: vi.fn() };
+});
 
 import { useUserProfileStore } from '@/stores/useUserProfileStore';
+import * as linking from '@/platform/linking';
 import * as secureStore from '@/platform/secureStore';
 import { kvStore } from '@/platform/kvStore';
 import { renderSetupAt, resetStores } from './renderSetup';
@@ -123,7 +128,7 @@ describe('LinkPassword', () => {
     expect(await screen.findByText('Identity has been reset successfully')).toBeInTheDocument();
   });
 
-  it('wallet path: opens the connect modal, auto-signs once connected and stores password + signature', async () => {
+  it('wallet path: connect, then a SECOND tap signs and stores password + signature', async () => {
     const user = userEvent.setup();
     await renderSetupAt('/setup/link-password');
     await fillPasswordAndConsent(user);
@@ -137,7 +142,14 @@ describe('LinkPassword', () => {
     await act(async () => {
       connectWallet('0xsigned');
     });
-    // Auto-sign 500 ms after the connection: byte-identical personal_sign params (lowercase account).
+    // Connecting does NOT sign. A phone browser blocks the app-switch a signature needs unless it happens
+    // inside a real tap, so an auto-fired request would leave the user on a spinner while an unseen prompt
+    // waits in a wallet that was never brought forward.
+    expect(await screen.findByTestId('ready-to-sign')).toBeInTheDocument();
+    expect(wallet.state.provider!.request).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId('sign-with-wallet'));
+    // Byte-identical personal_sign params (lowercase account) — this seeds the shared web/mobile identity.
     await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xsigned'), {
       timeout: 4000,
     });
@@ -168,6 +180,35 @@ describe('LinkPassword', () => {
     expect(await screen.findByText('Unable to sign the wallet address!')).toBeInTheDocument();
     expect(useUserProfileStore.getState().signiture).toBeUndefined();
     expect(screen.getByTestId('password-input')).toBeInTheDocument();
+  });
+
+  it('wallet path: a signature the wallet never answers offers a way into the wallet, and keeps waiting', async () => {
+    const user = userEvent.setup();
+    let approve: (sig: string) => void = () => undefined;
+    wallet.state.account = '0xABC';
+    wallet.state.connected = true;
+    wallet.state.provider = {
+      // Never settles on its own — the shape of the real bug: the request is on the relay, the wallet was
+      // never brought forward, and the user is looking at a browser tab that appears to do nothing.
+      request: vi.fn(() => new Promise<string>((resolve) => (approve = resolve))),
+      session: { peer: { metadata: { redirect: { native: 'metamask://' } } } },
+    } as never;
+    await renderSetupAt('/setup/link-password');
+    await fillPasswordAndConsent(user);
+    await user.click(await screen.findByTestId('sign-with-wallet'));
+
+    // The spinner's label, which is what a waiting user reads. "Connecting Wallet…" would be a lie here.
+    expect(await screen.findByLabelText('Approve the request in your wallet…')).toBeInTheDocument();
+    const open = await screen.findByTestId('open-wallet', undefined, { timeout: 8000 });
+    await user.click(open);
+    expect(linking.assign).toHaveBeenCalledWith('metamask://');
+
+    // The nudge must not abandon the request. A user who approves after switching apps by hand has their
+    // signature accepted, rather than being told it timed out with the wallet prompt already signed.
+    await act(async () => {
+      approve('0xlate');
+    });
+    await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xlate'));
   });
 
   it('manual signature path: portal, pasted signature + address, Submit stores the identity', async () => {
