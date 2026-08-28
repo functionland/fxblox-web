@@ -9,10 +9,27 @@ export { baseChainId, skaleChainId, BASE_CHAIN_ID, SKALE_CHAIN_ID };
 
 export const WaletConnect_Project_Id = '94a4ca39db88ee0be8f6df95fdfb560a';
 
+/**
+ * The origin this app is actually being served from.
+ *
+ * WalletConnect/Reown shows `providerMetadata.url` in the wallet's connection prompt and verifies it against
+ * the requesting origin. A hardcoded host therefore produces a "cannot verify domain" warning — which reads
+ * like a phishing warning to the user — the moment the app is served from anywhere else. It was pinned to
+ * `https://blox.fx.land`, while the app is actually served from `https://docs.fx.land/fxblox-web/` (the org
+ * GitHub Pages domain), so every wallet connect was flagged.
+ *
+ * Deriving it means the claim is true wherever the app runs — production, the Pages project path, or a local
+ * dev server — and cannot drift again. The literal is only a fallback for a non-browser context (SSR, tests).
+ */
+const APP_ORIGIN =
+  typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '')
+    : 'https://docs.fx.land/fxblox-web';
+
 export const providerMetadata = {
   name: 'FxBlox',
   description: 'Blox hardware dApp',
-  url: 'https://blox.fx.land',
+  url: APP_ORIGIN,
   icons: ['https://ipfs.cloud.fx.land/gateway/bafkreigl4s3qehoblwqglo5zjjjwtzkomxg4i6gygfeqk5s5h33m5iuyra'],
 };
 
