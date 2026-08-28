@@ -139,6 +139,13 @@ export class BleSession implements BleTransport {
   private gattQueue: Promise<unknown> = Promise.resolve();
   /** Characteristic keys whose notifications are already enabled on the current connection. */
   private notifying = new Set<string>();
+  /**
+   * Bumped on every disconnect. `startNotifications()` is awaited, and the disconnect event can land WHILE it
+   * is pending: the handler clears `notifying`, then the await resolves and would re-add the key — marking a
+   * dead connection as already-notifying, so the next `subscribe()` would skip enabling notifications and the
+   * session would never receive another frame. The epoch lets the continuation notice that happened.
+   */
+  private connectionEpoch = 0;
   private readonly onGattDisconnected: () => void;
 
   constructor(device: BluetoothDeviceLike, opts: BleSessionOptions = {}) {
@@ -157,6 +164,7 @@ export class BleSession implements BleTransport {
       this.characteristics.clear();
       // The CCCD state died with the connection; the next attach must re-enable notifications.
       this.notifying.clear();
+      this.connectionEpoch++;
       this.opts.log('disconnected', device.name ?? device.id);
       for (const cb of this.disconnectListeners) {
         try {
@@ -299,7 +307,14 @@ export class BleSession implements BleTransport {
         this.opts.log(`getPrimaryService attempt ${attempt} failed`, e);
         if (attempt < this.opts.serviceRetries) {
           await sleep(this.opts.retryBaseMs * attempt);
-          if (!gatt.connected) await gatt.connect();
+          // A failure to reconnect must not escape: it would abandon the remaining attempts and surface the
+          // connect error instead of the getPrimaryService one the retries exist for. The next attempt calls
+          // getPrimaryService anyway, which fails cleanly if the link is still down.
+          try {
+            if (!gatt.connected) await gatt.connect();
+          } catch (reconnectError) {
+            this.opts.log('reconnect between attempts failed', reconnectError);
+          }
         }
       }
     }
@@ -341,8 +356,12 @@ export class BleSession implements BleTransport {
     const c = await this.enqueue(async () => {
       const characteristic = await this.ensureCharacteristic(ref);
       if (!this.notifying.has(key)) {
+        const epoch = this.connectionEpoch;
         await characteristic.startNotifications();
-        this.notifying.add(key);
+        // Only record it if the connection we enabled it on is still the current one — a disconnect during
+        // that await already cleared the set, and re-adding here would make the next subscribe() skip
+        // enabling notifications on the NEW connection.
+        if (epoch === this.connectionEpoch) this.notifying.add(key);
       }
       return characteristic;
     });

@@ -218,6 +218,87 @@ describe('per-device GATT serialization', () => {
   });
 });
 
+describe('disconnect during setup', () => {
+  /** A device whose first `startNotifications` blocks, so a disconnect can land exactly while it is pending. */
+  function deviceWithHeldNotifications(id = 'dev-d') {
+    let release!: () => void;
+    let signalEntered!: () => void;
+    const held = new Promise<void>((r) => {
+      release = r;
+    });
+    /** Resolves once the flow is genuinely inside the first startNotifications — the window under test. */
+    const entered = new Promise<void>((r) => {
+      signalEntered = r;
+    });
+    let startCalls = 0;
+    const listeners: Record<string, Array<(ev: Event) => void>> = {};
+    const characteristic = {
+      value: null,
+      writeValueWithResponse: async () => undefined,
+      startNotifications: async function () {
+        startCalls++;
+        if (startCalls === 1) {
+          signalEntered();
+          await held;
+        }
+        return this;
+      },
+      stopNotifications: async function () {
+        return this;
+      },
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    };
+    const gatt = {
+      connected: true,
+      connect: async () => gatt,
+      disconnect: () => undefined,
+      getPrimaryService: async () => ({ getCharacteristic: async () => characteristic }),
+    };
+    const device: BluetoothDeviceLike = {
+      id,
+      name: 'fxblox-rk1',
+      gatt: gatt as never,
+      addEventListener: (type, l) => {
+        (listeners[type] ??= []).push(l);
+      },
+      removeEventListener: (type, l) => {
+        listeners[type] = (listeners[type] ?? []).filter((x) => x !== l);
+      },
+    };
+    return {
+      device,
+      release,
+      entered,
+      startCalls: () => startCalls,
+      fireDisconnect: () => {
+        for (const l of [...(listeners['gattserverdisconnected'] ?? [])]) l(new Event('gattserverdisconnected'));
+      },
+    };
+  }
+
+  /**
+   * The disconnect event can land WHILE `startNotifications()` is pending. The handler clears the notifying
+   * set; without a guard the continuation then re-adds the key, marking a dead connection as already
+   * notifying — so the next subscribe() skips enabling notifications and the session never receives another
+   * frame.
+   */
+  test('a disconnect while startNotifications is pending does not leave the key marked as enabled', async () => {
+    const { device, release, entered, startCalls, fireDisconnect } = deviceWithHeldNotifications();
+    const session = sessionForDevice(device);
+
+    const pending = session.subscribe(() => undefined);
+    await entered; // now genuinely inside startNotifications — the window the guard exists for
+    fireDisconnect();
+    release();
+    await pending;
+
+    // The connection it was enabled on is gone, so a fresh subscribe must enable notifications again.
+    await session.subscribe(() => undefined);
+    expect(startCalls()).toBe(2);
+  });
+});
+
 describe('BleRegistry.register', () => {
   test('re-registering the same session does not stack change subscriptions', () => {
     const { device, fire } = deviceWithListenerCount();

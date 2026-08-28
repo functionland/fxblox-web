@@ -199,6 +199,13 @@ export class ResponseAssembler implements BleCommandWriter {
       try {
         parsed = JSON.parse(value);
       } catch {
+        // Mid-assembly, an unparseable frame is a damaged or foreign frame, never the answer. Returning it
+        // resolved the whole command with a raw string: `formatLogResponse` then rendered two empty section
+        // headers and no error was surfaced.
+        if (this.isReceivingChunks) {
+          console.warn('Dropping an unparseable frame received mid-assembly:', value.slice(0, 80));
+          return null;
+        }
         console.log('Received non-JSON response:', value);
         return value;
       }
@@ -286,6 +293,16 @@ export class ResponseAssembler implements BleCommandWriter {
             this.responsePromise = null;
           }
         }
+        return null;
+      }
+
+      // Only a `ble_chunk` with no header of ours reaches here (the header branch above always returns), so
+      // this is a chunk from some other exchange — most likely the late reply to a command that already timed
+      // out. Notifications now stay enabled for the life of the connection, so nothing is lost in the gap
+      // between commands; the cost is that such a frame reaches this assembler instead of being dropped by the
+      // radio. Resolving the current command with it would splice one response into another.
+      if (frame.type === 'ble_chunk') {
+        console.warn('Dropping a stray chunk that belongs to another exchange');
         return null;
       }
 

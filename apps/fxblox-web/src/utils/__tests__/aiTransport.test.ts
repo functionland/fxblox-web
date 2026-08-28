@@ -46,14 +46,20 @@ beforeEach(() => {
   HttpAiClientMock.mockReset();
 });
 
-/** `new HttpAiClient(ip, port)` whose /health succeeds only for `healthyIp`. */
-function clientHealthyAt(healthyIp: string) {
+/**
+ * `new HttpAiClient(ip, port)` whose /health succeeds only for `healthyIp`.
+ *
+ * `identity` answers with the expected peer id by default: /health only proves something is listening, so the
+ * selector also checks `diag/kubo_health`'s peer_id before trusting an address it chose itself.
+ */
+function clientHealthyAt(healthyIp: string, identityPeerId: string | null = 'BLOX1') {
   return (ip: string, port: number) => ({
     ip,
     port,
     health: vi
       .fn()
       .mockResolvedValue(ip === healthyIp ? { ok: true, latencyMs: 7 } : { ok: false, latencyMs: 1000 }),
+    identity: vi.fn().mockResolvedValue(identityPeerId ? { peerId: identityPeerId } : null),
   });
 }
 
@@ -185,6 +191,7 @@ describe('selectAiTransport — manual IP fallback', () => {
       ip,
       port,
       health: vi.fn().mockResolvedValue({ ok: true, latencyMs: 20 }),
+      identity: vi.fn().mockResolvedValue({ peerId: 'BLOX1' }),
     }));
     const choice = await selectAiTransport('BLOX1', 'APP1', { manualIp: '192.168.1.77', scanIfEmpty: true });
     expect(choice.kind).toBe('lan-http');
@@ -276,6 +283,7 @@ describe('selectAiTransport — remembered LAN IP from a previous session', () =
     rememberedLanIp.mockResolvedValue({ ip: '192.168.2.159', authorizer: 'APP1', savedAt: Date.now() });
     HttpAiClientMock.mockImplementation(() => ({
       health: vi.fn().mockResolvedValue({ ok: true, latencyMs: 5 }),
+      identity: vi.fn().mockResolvedValue({ peerId: 'BLOX1' }),
     }));
     const choice = await selectAiTransport('BLOX1', 'APP1', { manualIp: '192.168.1.77', scanIfEmpty: false });
     expect(choice.reason).toMatch(/manual IP 192\.168\.1\.77/);
@@ -299,5 +307,45 @@ describe('selectAiTransport — remembered LAN IP from a previous session', () =
     HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.2.159'));
     await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: false });
     expect(HttpAiClientMock).toHaveBeenCalledWith('192.168.2.159', 9099);
+  });
+});
+
+/**
+ * `/health` proves only that SOMETHING is listening on `<ip>:8083`. Private ranges repeat across networks, so
+ * an address remembered at home can point at a stranger's machine on another network with the same subnet —
+ * and an approved remediation action would be POSTed to it. An address the app picks on its own must therefore
+ * prove which Blox is answering (`diag/kubo_health` → `peer_id`); one the user typed keeps working against
+ * firmware too old to answer, but is still refused on a definite mismatch.
+ */
+describe('selectAiTransport — the address must be the right Blox', () => {
+  test('a remembered address answered by a DIFFERENT blox is refused', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    rememberedLanIp.mockResolvedValue({ ip: '192.168.2.159', authorizer: 'APP1', savedAt: 1 });
+    HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.2.159', 'SOMEONE_ELSES_BLOX'));
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: false });
+    expect(choice.kind).toBe('ble');
+  });
+
+  test('a remembered address that cannot prove its identity is refused (it was not user-chosen)', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    rememberedLanIp.mockResolvedValue({ ip: '192.168.2.159', authorizer: 'APP1', savedAt: 1 });
+    HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.2.159', null));
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: false });
+    expect(choice.kind).toBe('ble');
+  });
+
+  test('a typed manual IP still works against firmware that cannot report its identity', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.1.77', null));
+    const choice = await selectAiTransport('BLOX1', 'APP1', { manualIp: '192.168.1.77', scanIfEmpty: false });
+    expect(choice.kind).toBe('lan-http');
+    expect(choice.reason).toMatch(/manual IP/);
+  });
+
+  test('a typed manual IP answered by a DIFFERENT blox is refused (catches a typo)', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.1.77', 'SOMEONE_ELSES_BLOX'));
+    const choice = await selectAiTransport('BLOX1', 'APP1', { manualIp: '192.168.1.77', scanIfEmpty: false });
+    expect(choice.kind).toBe('ble');
   });
 });
