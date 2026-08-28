@@ -145,7 +145,13 @@ describe('ConnectToBlox', () => {
   it('Bluetooth unavailable → offers the LAN step, NOT the hotspot, and fires no HTTP check', async () => {
     bleState().supported = false;
     await renderSetupAt('/setup/connect-blox');
+    // One hint per stage, about the button in front of the user. On arrival that is the device chooser; the
+    // local-network explainer would describe a permission nothing is about to ask for.
+    expect(screen.getByText(/device chooser opens/)).toBeInTheDocument();
+    expect(screen.queryByText(/access devices on your local network/)).toBeNull();
     await userEvent.click(await screen.findByTestId('connect-ble'));
+    expect(await screen.findByText(/access devices on your local network/)).toBeInTheDocument();
+    expect(screen.queryByText(/device chooser opens/)).toBeNull();
     // The order is Bluetooth → LAN → hotspot. The hotspot costs the user their internet, so it stays last.
     expect(await screen.findByTestId('lan-step')).toBeInTheDocument();
     expect(screen.queryByTestId('hotspot-instructions')).toBeNull();
