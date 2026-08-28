@@ -415,7 +415,9 @@
         "title": "Storage",
         "persisted": "Persistent storage is enabled: the browser will not evict your identity and Blox list under storage pressure.",
         "notPersisted": "This browser has not granted persistent storage. Your identity, linked wallet and Blox list could be evicted under storage pressure — you can set up again with the same password and wallet.",
-        "unknown": "Persistent storage status could not be determined in this browser."
+        "unknown": "Persistent storage status could not be determined in this browser.",
+        "enable": "Keep my data on this device",
+        "declined": "The browser did not grant it this time. Chrome decides this from how much you use the site rather than by asking, so installing this app or bookmarking it and trying again usually works."
       }
     },
     "bloxLogs": {
