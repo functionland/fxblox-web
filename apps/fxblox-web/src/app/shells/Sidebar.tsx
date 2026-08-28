@@ -46,7 +46,10 @@ export function Sidebar({ className }: SidebarProps) {
                   aria-label={label}
                   className={({ isActive }) =>
                     cn(
-                      'fx-pressable flex h-11 items-center justify-center gap-3 rounded-fx-m px-3 no-underline wide:justify-start',
+                      // `flex-row` is load-bearing: .fx-pressable sets flex-direction:column for React Native
+                      // parity and Tailwind's `flex` only sets `display`, so without it the icon stacks above
+                      // the label and the fixed h-11 makes each item overlap the next.
+                      'fx-pressable flex h-11 flex-row items-center justify-center gap-3 rounded-fx-m px-3 no-underline wide:justify-start',
                       'fx-text-bodySmallSemibold transition-colors',
                       isActive
                         ? 'bg-green-background text-primary'

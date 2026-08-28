@@ -140,7 +140,9 @@ export function SettingsMenu({ className }: SettingsMenuProps) {
               data-menu-item={item.id}
               className={({ isActive }) =>
                 cn(
-                  'fx-pressable flex items-center justify-between gap-3 rounded-fx-s bg-background-primary px-4 py-4 no-underline transition-colors',
+                  // flex-row: .fx-pressable defaults to column (RN parity) and `flex` only sets display, so
+                  // without it the label and chevron stack instead of sitting on one row.
+                  'fx-pressable flex flex-row items-center justify-between gap-3 rounded-fx-s bg-background-primary px-4 py-4 no-underline transition-colors',
                   'hover:bg-background-secondary',
                   isActive && !item.external && 'ring-2 ring-primary',
                 )

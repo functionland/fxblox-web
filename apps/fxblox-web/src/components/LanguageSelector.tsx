@@ -35,7 +35,8 @@ export function LanguageSelector({ className, align = 'end' }: LanguageSelectorP
           aria-label={t('shell.language.label')}
           data-testid="language-selector"
           className={cn(
-            'fx-pressable inline-flex h-10 min-w-[44px] items-center justify-center gap-1 rounded-fx-l px-3',
+            // flex-row: .fx-pressable defaults to column (RN parity) and `inline-flex` only sets display.
+            'fx-pressable inline-flex h-10 min-w-[44px] flex-row items-center justify-center gap-1 rounded-fx-l px-3',
             'fx-text-bodySmallSemibold text-content1 hover:bg-background-secondary data-[state=open]:bg-background-secondary',
             className,
           )}
