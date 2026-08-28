@@ -33,35 +33,22 @@
     },
     "requirements": {
       "title": "Before you start",
-      "intro": "Setting up a Blox from the browser needs a few permissions. Chrome or Edge asks for them at the right moment — here is what to expect.",
-      "lna": {
-        "title": "Local network access",
-        "body": "The first time this site talks to your Blox (its FxBlox hotspot at 10.42.0.1, or its address on your Wi-Fi) Chrome shows a prompt asking to allow access to devices on your local network. Choose Allow. If you dismissed it, re-enable it at the address below."
+      "intro": "We checked your browser. Anything that needs your attention is shown below.",
+      "allGood": "Your browser is ready — nothing to do here.",
+      "browser": {
+        "title": "This browser won't work",
+        "body": "Setting up a Blox needs Chrome or Edge, on a computer or an Android phone. Please open this page in one of those."
       },
-      "bluetooth": {
-        "title": "Bluetooth",
-        "body": "\"Connect via Bluetooth\" opens Chrome's device chooser. Pick the device named fulatower or fxblox and click Pair. Bluetooth is optional when you can join the FxBlox hotspot."
+      "lna": {
+        "title": "Your browser is blocking access to your network",
+        "body": "Local network access is needed to reach your Blox.",
+        "blocked": "This site isn't allowed to reach devices on your network, so it can't find your Blox. Turn it back on at the address below, then reload this page."
       },
       "camera": {
-        "title": "Camera (optional)",
-        "body": "Scanning a pairing QR code (Auto-Pin pairing) asks for camera access. You can always paste the code instead."
-      },
-      "chromium": {
-        "title": "Chrome or Edge required",
-        "body": "Web Bluetooth and the local-network permission are only available in Chromium browsers (Chrome, Edge) on desktop and Android."
-      },
-      "status": {
-        "title": "This browser",
-        "chromium": "Chromium browser",
-        "webBluetooth": "Web Bluetooth",
-        "lna": "Local network access",
-        "camera": "Camera",
-        "available": "Available",
-        "unavailable": "Not available",
-        "granted": "Allowed",
-        "denied": "Blocked",
-        "prompt": "Will ask",
-        "unsupported": "Not needed"
+        "title": "Camera",
+        "optional": "Only needed if you want to scan a pairing QR code. You can always type the code instead.",
+        "allow": "Allow camera",
+        "refused": "Your browser didn't allow it. You can still type the pairing code instead, or turn the camera on later in your browser's site settings."
       },
       "language": "Language",
       "continue": "Continue"
