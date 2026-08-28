@@ -171,11 +171,15 @@ export default function Diagnostics() {
             <FxBox gap="4">
               <FxText variant="bodySmallRegular">{t('diagnostics.relaysListLabel')}</FxText>
               <FxText variant="bodyXSRegular" color="content3" testID="diag-relays-source" data-source={relaySource}>
+                {/* `hardcoded` used to fall through to "No relay list is available." and print that line
+                    directly above the relay it had just listed. */}
                 {relaySource === 'live'
                   ? t('main.diagnostics.relaysSourceLive')
                   : relaySource === 'cache'
                     ? t('main.diagnostics.relaysSourceCache')
-                    : t('main.diagnostics.relaysSourceNone')}
+                    : relaySource === 'hardcoded'
+                      ? t('main.diagnostics.relaysSourceHardcoded')
+                      : t('main.diagnostics.relaysSourceNone')}
                 {freshness
                   ? ` · ${t('main.diagnostics.relaysFetched', { when: t(`main.diagnostics.${freshness.key}`, { count: freshness.count }) })}`
                   : ''}

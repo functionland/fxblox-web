@@ -43,6 +43,7 @@ import { UsageBar } from '@/components/UsageBar';
 import { DeviceCard } from '@/components/Cards/DeviceCard';
 import { EarningCard } from '@/components/Cards/EarningCard';
 import { TasksCard } from '@/components/Cards/TasksCard';
+import { StoragePersistenceCard } from '@/components/StoragePersistenceCard';
 import { BloxHeader } from './BloxHeader';
 import { BloxHero } from './BloxHero';
 
@@ -420,6 +421,10 @@ export default function Blox() {
       <WalletNotification compact />
     </WalletGate>
   );
+  // Renders itself only while the grant is missing. It belongs here, not just in Settings > About: losing
+  // IndexedDB costs the user their identity and Blox list, and a warning buried in a settings sub-page with no
+  // button was something they could read but not act on.
+  const storageNotice = <StoragePersistenceCard variant="banner" testIdPrefix="blox-storage" />;
 
   return (
     <>
@@ -428,6 +433,7 @@ export default function Blox() {
         {isDesktop ? (
           <>
             {notification}
+            {storageNotice}
             <FxCard testID="blox-hero-card">
               {hero}
               <FxBox alignItems="center" marginTop="8">
@@ -447,6 +453,7 @@ export default function Blox() {
             {hero}
             {diagnoseCta}
             {notification}
+            {storageNotice}
             {usageBar}
             {deviceCard}
             {walletSection}

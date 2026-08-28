@@ -122,6 +122,11 @@ describe('Diagnostics (Blox AI)', () => {
     await waitFor(() => expect(screen.getByTestId('diag-internet')).toHaveAttribute('data-status', 'failed'));
     await waitFor(() => expect(screen.getByTestId('diag-discovery')).toHaveAttribute('data-status', 'failed'));
     expect(await screen.findByTestId('diag-relays')).toHaveTextContent('relay.dev.fx.land');
-    expect(screen.getByTestId('diag-relays-source')).toHaveAttribute('data-source', 'hardcoded');
+    const source = screen.getByTestId('diag-relays-source');
+    expect(source).toHaveAttribute('data-source', 'hardcoded');
+    // `hardcoded` used to fall through to the "none" copy, so the card claimed "No relay list is available."
+    // on the line directly above the relay it had just listed.
+    expect(source).toHaveTextContent(/Built-in relay list/);
+    expect(source).not.toHaveTextContent(/No relay list is available/);
   });
 });

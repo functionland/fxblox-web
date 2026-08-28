@@ -4,8 +4,15 @@
  * Order:
  *   1. LAN HTTP via a FRESH LAN-IP record (authorizer + RFC1918/link-local IP + 1 s /health probe all pass)
  *   2. LAN HTTP via a user-typed manual IP — same gate + probe; tried before any refresh, even without peer ids
- *   3. LAN HTTP via a discovery `/find-box` private ip4 entry (fula-ota PR-D; a no-op today) when `scanIfEmpty`
- *   4. BLE (fallback) — the caller wires `BleAiClient` over the registry's session
+ *   3. LAN HTTP via the REMEMBERED address for this Blox — the last one the app actually talked to, persisted
+ *      across reloads; no age gate, because the Blox's peer id (from `diag/kubo_health`) is checked instead
+ *   4. LAN HTTP via a discovery `/find-box` private ip4 entry (fula-ota PR-D; a no-op today) when `scanIfEmpty`
+ *   5. BLE (fallback) — the caller wires `BleAiClient` over the registry's session
+ *
+ * Tier 3 exists because a browser has no mDNS. Without it the only automatic LAN candidate was a record from
+ * this page's own session, so a reload left Blox AI with nothing to try — `/find-box` is blocked for browsers
+ * and no manual IP is set by default — and it reported "Cannot reach your Blox over LAN or Bluetooth" about a
+ * Blox on the same switch that setup had reached minutes earlier.
  *
  * This module does NOT touch `helper.ts:initFula` (libp2p client setup is a separate concern).
  */
@@ -42,6 +49,24 @@ export async function selectAiTransport(bloxPeerId: string, appPeerId: string, o
   const scanIfEmpty = opts.scanIfEmpty ?? false;
   const manualIp = (opts.manualIp ?? '').trim();
 
+  /**
+   * Confirm the thing answering at this address is the Blox we mean.
+   *
+   * `/health` proves only that SOMETHING is listening on `<ip>:8083`. Private ranges repeat across networks, so
+   * an address that was right at home can point at a stranger's machine on another network with the same
+   * subnet — and an approved remediation action would then be POSTed to it. `diag/kubo_health` returns the
+   * Blox's `peer_id`, so identity is checkable with no firmware change.
+   *
+   * `null` from `identity()` means "cannot tell" (older firmware, unparseable reply), which is NOT a mismatch.
+   * `required` decides what to do with that: an address the app picked on its own must prove itself; one the
+   * user typed keeps working against an older Blox, and is still refused on a definite mismatch.
+   */
+  const identityOk = async (client: HttpAiClient, required: boolean): Promise<boolean> => {
+    const id = await client.identity(probeTimeoutMs);
+    if (!id) return !required;
+    return id.peerId === bloxPeerId;
+  };
+
   // Probe + qualify a user-typed manual IP. The RFC1918/link-local gate is re-applied HERE as the hard backstop:
   // never POST AI actions to a non-private address.
   const qualifyManual = async (): Promise<AiTransportChoice | null> => {
@@ -49,7 +74,25 @@ export async function selectAiTransport(bloxPeerId: string, appPeerId: string, o
     const client = new HttpAiClient(manualIp, DEFAULT_BLOX_AI_PORT);
     const probe = await client.health(probeTimeoutMs);
     if (!probe.ok) return null;
+    // Deliberate, but still worth catching a typo or a Blox that has since moved.
+    if (bloxPeerId && !(await identityOk(client, false))) return null;
     return { kind: 'lan-http', httpClient: client, reason: `manual IP ${manualIp}, /health 200 in ${probe.latencyMs}ms` };
+  };
+
+  // Probe + qualify the last address this app actually reached the Blox at. Same RFC1918 backstop, plus a hard
+  // identity check: no age gate, so the peer id is what makes a remembered address safe to reuse.
+  const qualifyRemembered = async (): Promise<AiTransportChoice | null> => {
+    const remembered = await lanIpCache.rememberedLanIp(bloxPeerId, appPeerId);
+    if (!remembered || !ipIsPrivateLan(remembered.ip)) return null;
+    const client = new HttpAiClient(remembered.ip, remembered.port ?? DEFAULT_BLOX_AI_PORT);
+    const probe = await client.health(probeTimeoutMs);
+    if (!probe.ok) return null;
+    if (!(await identityOk(client, true))) return null;
+    return {
+      kind: 'lan-http',
+      httpClient: client,
+      reason: `remembered IP ${remembered.ip}, identity confirmed, /health 200 in ${probe.latencyMs}ms`,
+    };
   };
 
   if (!bloxPeerId || !appPeerId) {
@@ -61,20 +104,27 @@ export async function selectAiTransport(bloxPeerId: string, appPeerId: string, o
   // 1) Cache first; a FRESH record reflects the current network and always wins over a possibly-stale manual IP.
   let hit = lanIpCache.findAuthorizedBlox(bloxPeerId, appPeerId, mdnsMaxAgeMs);
 
-  // 2) Cache miss: manual IP BEFORE the refresh.
+  // 2) Cache miss: manual IP BEFORE the refresh. A typed address beats a remembered one — the user is
+  //    correcting us when they set it.
   if (!hit) {
     const manual = await qualifyManual();
     if (manual) return manual;
   }
 
-  // 3) Still nothing and caller permits: one-shot discovery refresh.
+  // 3) Then the remembered address from a previous session.
+  if (!hit) {
+    const remembered = await qualifyRemembered();
+    if (remembered) return remembered;
+  }
+
+  // 4) Still nothing and caller permits: one-shot discovery refresh.
   if (!hit && scanIfEmpty) {
     await lanIpCache.refreshOnce(bloxPeerId, appPeerId);
     hit = lanIpCache.findAuthorizedBlox(bloxPeerId, appPeerId, mdnsMaxAgeMs);
   }
 
   if (!hit) {
-    return { kind: 'ble', reason: 'no fresh mDNS record matching bloxPeerId+appPeerId' };
+    return { kind: 'ble', reason: 'no LAN candidate: no fresh record, no manual IP, no remembered address' };
   }
 
   const ip = hit.service.txt?.ipAddress ?? hit.service.host ?? '';

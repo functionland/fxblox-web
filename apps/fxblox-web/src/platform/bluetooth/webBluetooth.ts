@@ -1,12 +1,12 @@
 /**
- * BleSession — a Web Bluetooth GATT session for one Blox (the `BleManagerWrapper` replacement).
+ * BleSession â€” a Web Bluetooth GATT session for one Blox (the `BleManagerWrapper` replacement).
  *
  *  - `BleSession.pick()` runs `requestDevice({ filters: [{namePrefix:'fulatower'},{namePrefix:'fxblox'}],
- *    optionalServices: [00000001-…] })` — must be called from a click handler (Chrome's chooser replaces the
+ *    optionalServices: [00000001-â€¦] })` â€” must be called from a click handler (Chrome's chooser replaces the
  *    mobile device-selection sheet).
- *  - `attach()` connects GATT, retries `getPrimaryService` 3× (services are not always enumerated right after
+ *  - `attach()` connects GATT, retries `getPrimaryService` 3Ã— (services are not always enumerated right after
  *    connect), and caches the command characteristic.
- *  - `write()` enforces the 512-byte cap: whole write when ≤ 512 B; longer commands are fragmented
+ *  - `write()` enforces the 512-byte cap: whole write when â‰¤ 512 B; longer commands are fragmented
  *    (`chunk <n>/<m> <payload>`) only when `allowChunkedWrites` is on (fula-ota PR-E), else `BleCommandTooLong`.
  *  - `reconnect()` re-attaches without the chooser via `getDevices()` / `watchAdvertisements()` when the
  *    browser supports them.
@@ -89,15 +89,64 @@ export function isFxBloxDeviceName(name: string | undefined): boolean {
   return BLE_NAME_PREFIXES.some((p) => n.includes(p));
 }
 
+/**
+ * One session per physical device â€” see `sessionForDevice`.
+ *
+ * Chrome hands back the SAME `BluetoothDevice` object for a given device and origin, so a second
+ * `new BleSession(device)` puts a second `gattserverdisconnected` listener on it and, worse, a second
+ * independent set of `attaching` / `writeQueue` guards over one radio. Observed in the field: the disconnect
+ * line logged twice, then three times, two `doAttach` retry loops interleaving within the same second, and the
+ * next write failing with `NotSupportedError: GATT operation failed for unknown reason` â€” which is Chrome
+ * rejecting a GATT operation issued while another was already in flight on that device. Reusing the session
+ * makes the existing per-instance guards effective per-device guards, which is what they were always meant
+ * to be.
+ */
+const sessionsByDevice = new Map<string, BleSession>();
+
+/**
+ * The session for this device, creating it only the first time.
+ *
+ * `pick()` runs on every press of "Connect via Bluetooth", and the screens legitimately call it more than once
+ * (`navigator.bluetooth.getDevices()` is behind a flag and unavailable on stock Chrome, so a remount cannot
+ * silently restore the session and the user has to press Connect again). Repeated picks must therefore be
+ * harmless rather than cumulative.
+ */
+export function sessionForDevice(device: BluetoothDeviceLike, opts: BleSessionOptions = {}): BleSession {
+  const existing = sessionsByDevice.get(device.id);
+  if (existing) {
+    existing.applyOptions(opts);
+    return existing;
+  }
+  const session = new BleSession(device, opts);
+  sessionsByDevice.set(device.id, session);
+  return session;
+}
+
+/** Test hook: forget every cached session so each test starts from a clean device map. */
+export function _resetSessionsForTests(): void {
+  for (const session of sessionsByDevice.values()) session.dispose();
+  sessionsByDevice.clear();
+}
+
 export class BleSession implements BleTransport {
   readonly device: BluetoothDeviceLike;
   private readonly opts: Required<Pick<BleSessionOptions, 'allowChunkedWrites' | 'serviceUUID' | 'characteristicUUID' | 'serviceRetries' | 'retryBaseMs'>> & {
     log: (message: string, ...args: unknown[]) => void;
   };
   private characteristics = new Map<string, BluetoothRemoteGATTCharacteristicLike>();
-  private attaching: Promise<void> | null = null;
   private disconnectListeners = new Set<() => void>();
-  private writeQueue: Promise<void> = Promise.resolve();
+  /** Serializes every GATT operation on this device — see `enqueue`. */
+  private gattQueue: Promise<unknown> = Promise.resolve();
+  /** Characteristic keys whose notifications are already enabled on the current connection. */
+  private notifying = new Set<string>();
+  /**
+   * Bumped on every disconnect. `startNotifications()` is awaited, and the disconnect event can land WHILE it
+   * is pending: the handler clears `notifying`, then the await resolves and would re-add the key — marking a
+   * dead connection as already-notifying, so the next `subscribe()` would skip enabling notifications and the
+   * session would never receive another frame. The epoch lets the continuation notice that happened.
+   */
+  private connectionEpoch = 0;
+  private readonly onGattDisconnected: () => void;
 
   constructor(device: BluetoothDeviceLike, opts: BleSessionOptions = {}) {
     this.device = device;
@@ -109,8 +158,13 @@ export class BleSession implements BleTransport {
       retryBaseMs: opts.retryBaseMs ?? 1000,
       log: opts.log ?? ((m, ...a) => console.log('[BLE]', m, ...a)),
     };
-    device.addEventListener?.('gattserverdisconnected', () => {
+    // Kept as a field so `dispose()` can remove it. An anonymous listener could never be detached, which is
+    // half of why stacked sessions were unrecoverable.
+    this.onGattDisconnected = () => {
       this.characteristics.clear();
+      // The CCCD state died with the connection; the next attach must re-enable notifications.
+      this.notifying.clear();
+      this.connectionEpoch++;
       this.opts.log('disconnected', device.name ?? device.id);
       for (const cb of this.disconnectListeners) {
         try {
@@ -119,10 +173,30 @@ export class BleSession implements BleTransport {
           /* ignore */
         }
       }
-    });
+    };
+    device.addEventListener?.('gattserverdisconnected', this.onGattDisconnected);
   }
 
-  /** Chrome chooser — call from a user gesture. */
+  /** Apply the caller-supplied options that may legitimately differ between call sites. */
+  applyOptions(opts: BleSessionOptions): void {
+    if (opts.allowChunkedWrites !== undefined) this.opts.allowChunkedWrites = opts.allowChunkedWrites;
+    if (opts.serviceRetries !== undefined) this.opts.serviceRetries = opts.serviceRetries;
+    if (opts.retryBaseMs !== undefined) this.opts.retryBaseMs = opts.retryBaseMs;
+    if (opts.log) this.opts.log = opts.log;
+  }
+
+  /** Detach from the device. Only for teardown â€” a live session must stay listening. */
+  dispose(): void {
+    this.device.removeEventListener?.('gattserverdisconnected', this.onGattDisconnected);
+    this.disconnectListeners.clear();
+    this.characteristics.clear();
+    this.notifying.clear();
+  }
+
+  /**
+   * Chrome chooser â€” call from a user gesture. Returns the EXISTING session when this device already has one,
+   * so pressing Connect twice cannot leave two sessions racing over one radio.
+   */
   static async pick(opts: BleSessionOptions = {}): Promise<BleSession> {
     const api = bluetoothApi();
     if (!api?.requestDevice) throw new BleUnavailableError();
@@ -130,7 +204,7 @@ export class BleSession implements BleTransport {
       filters: BLE_NAME_PREFIXES.map((namePrefix) => ({ namePrefix })),
       optionalServices: [opts.serviceUUID ?? BLE_SERVICE_UUID],
     });
-    return new BleSession(device as unknown as BluetoothDeviceLike, opts);
+    return sessionForDevice(device as unknown as BluetoothDeviceLike, opts);
   }
 
   /** Devices this origin was previously granted (Chrome `getDevices()`); empty when unsupported. */
@@ -168,17 +242,49 @@ export class BleSession implements BleTransport {
     return { serviceUUID, characteristicUUID, key: `${serviceUUID}/${characteristicUUID}` };
   }
 
+  /**
+   * Run one GATT operation with nothing else in flight on this device.
+   *
+   * Chrome does not queue GATT work: it hands each call to the OS Bluetooth stack, and Windows in particular
+   * rejects a second operation issued while one is outstanding — surfacing as the opaque
+   * `NotSupportedError: GATT operation failed for unknown reason`. Serializing writes alone was not enough,
+   * because `attach()` and `subscribe()`/`startNotifications()` (a CCCD write, a real GATT operation) went
+   * around that queue and could overlap a write issued by another screen.
+   *
+   * Everything that touches the radio goes through here. Callers already inside a slot must use the raw
+   * helpers (`ensureCharacteristic`) rather than re-entering, or they would wait on a slot they hold.
+   */
+  private enqueue<T>(op: () => Promise<T>): Promise<T> {
+    const run = () => op();
+    const next = this.gattQueue.then(run, run);
+    this.gattQueue = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }
+
   async attach(ref?: BleCharacteristicRef): Promise<void> {
     const { key } = this.key(ref);
+    // Fast path: nothing to do and no radio traffic, so it need not take a queue slot.
     if (this.isConnected() && this.characteristics.has(key)) return;
-    if (this.attaching) {
-      await this.attaching;
-      if (this.isConnected() && this.characteristics.has(key)) return;
-    }
-    this.attaching = this.doAttach(ref).finally(() => {
-      this.attaching = null;
-    });
-    return this.attaching;
+    await this.enqueue(() => this.ensureCharacteristic(ref));
+  }
+
+  /**
+   * The characteristic, connecting and resolving it if needed. Performs raw GATT calls, so it must only be
+   * called from inside a queue slot.
+   */
+  private async ensureCharacteristic(
+    ref?: BleCharacteristicRef,
+  ): Promise<BluetoothRemoteGATTCharacteristicLike> {
+    const { key } = this.key(ref);
+    const cached = this.characteristics.get(key);
+    if (this.isConnected() && cached) return cached;
+    await this.doAttach(ref);
+    const c = this.characteristics.get(key);
+    if (!c) throw new Error('BleSession: not attached');
+    return c;
   }
 
   private async doAttach(ref?: BleCharacteristicRef): Promise<void> {
@@ -201,31 +307,30 @@ export class BleSession implements BleTransport {
         this.opts.log(`getPrimaryService attempt ${attempt} failed`, e);
         if (attempt < this.opts.serviceRetries) {
           await sleep(this.opts.retryBaseMs * attempt);
-          if (!gatt.connected) await gatt.connect();
+          // A failure to reconnect must not escape: it would abandon the remaining attempts and surface the
+          // connect error instead of the getPrimaryService one the retries exist for. The next attempt calls
+          // getPrimaryService anyway, which fails cleanly if the link is still down.
+          try {
+            if (!gatt.connected) await gatt.connect();
+          } catch (reconnectError) {
+            this.opts.log('reconnect between attempts failed', reconnectError);
+          }
         }
       }
     }
     throw lastError instanceof Error ? lastError : new Error('getPrimaryService failed');
   }
 
-  private characteristic(ref?: BleCharacteristicRef): BluetoothRemoteGATTCharacteristicLike {
-    const { key } = this.key(ref);
-    const c = this.characteristics.get(key);
-    if (!c) throw new Error('BleSession: not attached');
-    return c;
-  }
-
   /**
    * Write one command. ≤ 512 B → single write; longer → fragmented when allowed, else `BleCommandTooLong`.
-   * Writes are serialized per session so fragments from concurrent callers cannot interleave.
+   * The whole command holds one queue slot, so fragments cannot interleave with another caller's traffic.
    */
   write(bytes: Uint8Array, ref?: BleCharacteristicRef): Promise<void> {
     if (bytes.length > BLE_MAX_WRITE_BYTES && !this.opts.allowChunkedWrites) {
       return Promise.reject(new BleCommandTooLong(bytes.length));
     }
-    const run = async () => {
-      await this.attach(ref);
-      const c = this.characteristic(ref);
+    return this.enqueue(async () => {
+      const c = await this.ensureCharacteristic(ref);
       const frames = fragmentCommand(bytes);
       for (const frame of frames) {
         const buf = toArrayBuffer(frame);
@@ -233,15 +338,34 @@ export class BleSession implements BleTransport {
         else if (c.writeValue) await c.writeValue(buf);
         else throw new Error('BleSession: characteristic is not writable');
       }
-    };
-    const next = this.writeQueue.then(run, run);
-    this.writeQueue = next.catch(() => undefined);
-    return next;
+    });
   }
 
+  /**
+   * Listen for notifications. The disposer detaches this handler only.
+   *
+   * Notifications stay enabled on the characteristic once started, for the life of the connection.
+   * `startNotifications()`/`stopNotifications()` write the peripheral's CCCD — they are real GATT operations,
+   * and cycling them around every command bought nothing while adding radio traffic on the exact path that was
+   * already failing. It also opened a window: anything the Blox sent between one command's stop and the next
+   * command's start was dropped by the OS and lost for good. The Blox sends its reply as ~57 unacknowledged
+   * notification frames, so that window mattered.
+   */
   async subscribe(handler: (value: Uint8Array) => void, ref?: BleCharacteristicRef): Promise<() => Promise<void>> {
-    await this.attach(ref);
-    const c = this.characteristic(ref);
+    const { key } = this.key(ref);
+    const c = await this.enqueue(async () => {
+      const characteristic = await this.ensureCharacteristic(ref);
+      if (!this.notifying.has(key)) {
+        const epoch = this.connectionEpoch;
+        await characteristic.startNotifications();
+        // Only record it if the connection we enabled it on is still the current one — a disconnect during
+        // that await already cleared the set, and re-adding here would make the next subscribe() skip
+        // enabling notifications on the NEW connection.
+        if (epoch === this.connectionEpoch) this.notifying.add(key);
+      }
+      return characteristic;
+    });
+
     const listener = (ev: Event) => {
       const target = ev.target as { value?: DataView | null } | null;
       const dv = target?.value ?? c.value;
@@ -249,25 +373,15 @@ export class BleSession implements BleTransport {
       handler(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength));
     };
     c.addEventListener('characteristicvaluechanged', listener);
-    try {
-      await c.startNotifications();
-    } catch (e) {
-      c.removeEventListener('characteristicvaluechanged', listener);
-      throw e;
-    }
+
     return async () => {
       c.removeEventListener('characteristicvaluechanged', listener);
-      try {
-        await c.stopNotifications();
-      } catch {
-        /* best effort */
-      }
     };
   }
 
   /**
-   * Re-attach without the chooser. When `watchAdvertisements` exists, wait (≤ timeoutMs) for the device to be
-   * seen before connecting — connecting to an out-of-range device otherwise hangs for a long time.
+   * Re-attach without the chooser. When `watchAdvertisements` exists, wait (â‰¤ timeoutMs) for the device to be
+   * seen before connecting â€” connecting to an out-of-range device otherwise hangs for a long time.
    */
   async reconnect(opts: { timeoutMs?: number } = {}): Promise<void> {
     if (this.isConnected()) return;
@@ -296,6 +410,7 @@ export class BleSession implements BleTransport {
 
   async disconnect(): Promise<void> {
     this.characteristics.clear();
+    this.notifying.clear();
     try {
       this.device.gatt?.disconnect();
     } catch {

@@ -230,6 +230,30 @@ export class HttpAiClient {
   }
 
   /**
+   * Which Blox is answering at this address, from `diag/kubo_health`'s `peer_id`.
+   *
+   * `/health` only proves that SOMETHING is listening on `<ip>:8083` — not that it is the Blox we mean. Private
+   * ranges repeat across networks, so an address remembered from one network can point at a stranger's machine
+   * on another, and a diagnostic session can POST approved remediation actions. Anything chosen automatically
+   * has to prove its identity before it is used.
+   *
+   * `null` means "cannot tell" (older firmware without the endpoint, or an unparseable reply) — deliberately
+   * distinct from a mismatch, so callers can decide: refuse when the address was picked for the user, allow
+   * when the user typed it themselves.
+   */
+  public async identity(timeoutMs: number = HEALTH_TIMEOUT_MS): Promise<{ peerId: string } | null> {
+    try {
+      const res = await fetchWithTimeout(`${this.baseUrl}/diag/kubo_health`, { method: 'GET' }, timeoutMs);
+      if (res.status !== 200) return null;
+      const body = (await res.json().catch(() => null)) as { peer_id?: unknown } | null;
+      const peerId = typeof body?.peer_id === 'string' ? body.peer_id.trim() : '';
+      return peerId ? { peerId } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Shared SSE session wiring for runAi / runTree / resume. Lifecycle order on error: safeError FIRST (while
    * closed === false), THEN closed = true, THEN close the stream — so a synchronous close can never fire
    * onComplete on the same tick as onError.

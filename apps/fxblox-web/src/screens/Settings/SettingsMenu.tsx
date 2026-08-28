@@ -78,16 +78,9 @@ export function useSettingsMenuItems(): SettingsMenuItem[] {
     // the web route `/settings/dapps` exists (plan route table), so it needs a menu entry.
     { id: 'connectedDApps', label: t('settings.menu.connectedDApps'), to: paths.settings.dapps },
     { id: 'about', label: t('settings.menu.about'), to: paths.settings.about },
-    ...(env.ENABLE_GALLERY
-      ? [
-          {
-            id: 'componentGallery',
-            label: t('settings.menu.componentGallery'),
-            to: paths.gallery,
-            external: true,
-          },
-        ]
-      : []),
+    // The component gallery is deliberately NOT listed. It is a developer tool, not a product feature, so it
+    // stays reachable by typing /gallery (still gated on env.ENABLE_GALLERY in the route table) without taking
+    // up a row in a menu real users read.
   ];
   return items;
 }

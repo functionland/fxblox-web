@@ -129,7 +129,10 @@ describe('BleSession.write — 512-byte cap policy', () => {
     characteristic.notify('{"hello":1}');
     expect(received).toEqual(['{"hello":1}']);
     await unsub();
-    expect(characteristic.stopNotifications).toHaveBeenCalledTimes(1);
+    // The disposer detaches THIS handler only — notifications stay enabled for the life of the connection.
+    // Cycling the CCCD around every command dropped anything the Blox sent in between, and the Blox answers
+    // with ~57 unacknowledged frames, so that window lost data.
+    expect(characteristic.stopNotifications).not.toHaveBeenCalled();
     characteristic.notify('late');
     expect(received).toHaveLength(1);
   });
