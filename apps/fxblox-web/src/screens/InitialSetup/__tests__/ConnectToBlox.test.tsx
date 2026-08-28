@@ -210,6 +210,16 @@ describe('ConnectToBlox', () => {
     expect(await screen.findByTestId('lan-not-found')).toBeInTheDocument();
     expect(screen.queryByTestId('lan-error-unreachable')).toBeNull();
     expect(screen.getByTestId('lan-skip')).toBeInTheDocument();
+    // The status names what was tried. The generic `failed` copy says "Unable to connect to Hotspot", and no
+    // hotspot was involved — the user typed a LAN address.
+    expect(screen.getByTestId('connection-status')).toHaveTextContent('No Blox found at that address');
+
+    // Moving on drops the previous step's verdict rather than carrying it into a step the user has not
+    // attempted: arriving at the hotspot already told they failed to reach it is how a person gives up.
+    await userEvent.click(screen.getByTestId('lan-skip'));
+    expect(await screen.findByTestId('hotspot-instructions')).toBeInTheDocument();
+    expect(screen.getByTestId('connection-status')).toHaveTextContent('Not Connected');
+    expect(screen.queryByTestId('lan-not-found')).toBeNull();
   });
 
   it('LAN step: "I don\'t know the address" advances to the hotspot instructions', async () => {

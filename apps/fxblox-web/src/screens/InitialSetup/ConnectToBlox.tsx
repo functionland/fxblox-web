@@ -73,6 +73,12 @@ const CONNECTED_STATES = new Set<EConnectionStatus>([
   EConnectionStatus.bleConnected,
 ]);
 
+const FAILED_STATES = new Set<EConnectionStatus>([
+  EConnectionStatus.failed,
+  EConnectionStatus.bleFailed,
+  EConnectionStatus.lanFailed,
+]);
+
 export default function ConnectToBlox() {
   const { t } = useTranslation();
   const { navigate, back } = useAppNavigate();
@@ -135,6 +141,8 @@ export default function ConnectToBlox() {
         return t('connectToBlox.bleConnected');
       case EConnectionStatus.bleFailed:
         return t('connectToBlox.bleFailed');
+      case EConnectionStatus.lanFailed:
+        return t('connectToBlox.lanFailed');
       default:
         return '';
     }
@@ -211,7 +219,9 @@ export default function ConnectToBlox() {
         void navigate(paths.setup.setAuthorizer({ ip: lanIp.trim() }));
         return;
       }
-      setConnectionStatus(EConnectionStatus.failed);
+      // NOT `failed`: that status reads "Unable to connect to Hotspot", and the hotspot is not what was
+      // tried — naming it here tells the user something untrue about a step they have not reached.
+      setConnectionStatus(EConnectionStatus.lanFailed);
       // No answer is the EXPECTED outcome on firmware that predates the LAN setup listener, and on a Blox
       // that simply is not on this network. Treat it as "not found here" rather than an error; only a real
       // browser-level problem (permission, CORS) earns the error card.
@@ -281,7 +291,8 @@ export default function ConnectToBlox() {
             as="p"
             variant="h200"
             textAlign="center"
-            color={connectionStatus === EConnectionStatus.bleFailed ? 'warningBase' : 'primary'}
+            // A failure printed in the same teal as "Connected" reads as good news at a glance.
+            color={FAILED_STATES.has(connectionStatus) ? 'warningBase' : 'primary'}
             role="status"
             testID="connection-status"
           >
@@ -356,7 +367,14 @@ export default function ConnectToBlox() {
                 <FxButton
                   variant="inverted"
                   size="small"
-                  onPress={() => setStage('hotspot')}
+                  onPress={() => {
+                    // Leave the previous step's verdict behind. Carrying it forward pre-announces a hotspot
+                    // failure the user has not had the chance to cause yet.
+                    setStage('hotspot');
+                    setConnectionStatus(EConnectionStatus.notConnected);
+                    setLanError(null);
+                    setLanNotFound(false);
+                  }}
                   testID="lan-skip"
                 >
                   {t('setup.connectToBlox.lan.skip')}

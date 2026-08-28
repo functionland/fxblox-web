@@ -240,6 +240,7 @@
       "bleConnecting": "Searching for Blox device...",
       "bleConnected": "Connected to Blox via Bluetooth",
       "bleFailed": "Bluetooth didn't work — let's try another way",
+      "lanFailed": "No Blox found at that address",
       "formatInstructions": "- Make sure you have internal or external storage attached and format is either 'ext4' or 'vFat'.",
       "waitForBlueLight": "After first boot please wait for 10 minutes until Blox flashes 'light-blue'",
       "connectedMessage": "Now you are connected to Blox. Please wait...",

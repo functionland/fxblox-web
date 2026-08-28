@@ -48,6 +48,7 @@
     "bleConnecting": "正在搜索 Blox 设备...",
     "bleConnected": "已通过蓝牙连接到 Blox",
     "bleFailed": "蓝牙没有连接成功 — 我们换一种方式",
+    "lanFailed": "该地址没有找到 Blox",
     "formatInstructions": "- 确保您已连接内部或外部存储，格式为 ext4 或 vFat 。",
     "waitForBlueLight": "首次启动后请等待 10 分钟，直到 Blox 闪烁 淡蓝色",
     "connectedMessage": "现在您已连接到 Blox。请稍候...",
