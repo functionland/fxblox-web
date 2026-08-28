@@ -64,10 +64,20 @@
       "signaturePortalHint": "Sign at fxblox.fx.land, then paste the signature below together with the wallet address you signed with."
     },
     "connectToBlox": {
-      "intro": "Turn your Blox on. You can reach it over Bluetooth, or by joining its Wi-Fi hotspot.",
+      "intro": "Turn your Blox on, then connect to it with Bluetooth. We'll suggest other ways if that doesn't work.",
       "connectViaBluetooth": "Connect via Bluetooth",
-      "hotspotCheck": "I'm on the FxBlox hotspot — check",
-      "hotspotJoin": "Join the Wi-Fi network \"FxBlox\" from your computer's or phone's Wi-Fi settings, then press \"I'm on the FxBlox hotspot — check\".",
+      "retryBluetooth": "Try Bluetooth again",
+      "lan": {
+        "title": "Is your Blox connected to your home network?",
+        "body": "If you've plugged your Blox into your router with a cable, or it's already on your Wi-Fi, you can connect to it directly. You'll find its address in your router's list of connected devices — it usually starts with 192.168.",
+        "placeholder": "192.168.1.50",
+        "connect": "Connect to this address",
+        "skip": "I don't know the address",
+        "badAddress": "That doesn't look like a home network address. It should start with 192.168, 10. or 172.",
+        "notFound": "No Blox answered at that address. Check the address, or use the Blox's own Wi-Fi instead."
+      },
+      "hotspotCheck": "I've joined the FxBlox Wi-Fi — check",
+      "hotspotJoin": "Open your Wi-Fi settings and join the network called \"FxBlox\", then come back and press the button below. Your internet will pause while you're connected to it.",
       "lnaExplainer": "Chrome will ask to allow this site to access devices on your local network. Choose Allow.",
       "checkingHotspot": "Checking the hotspot… we keep checking every few seconds.",
       "bleChooserHint": "Chrome's device chooser opens — pick \"fulatower\" or \"fxblox\" and click Pair.",
