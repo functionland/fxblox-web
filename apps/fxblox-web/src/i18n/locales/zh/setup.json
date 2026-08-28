@@ -33,35 +33,22 @@
     },
     "requirements": {
       "title": "开始之前",
-      "intro": "在浏览器中设置 Blox 需要几项权限。Chrome 或 Edge 会在合适的时机询问，以下是您将看到的内容。",
-      "lna": {
-        "title": "本地网络访问",
-        "body": "本网站第一次与您的 Blox 通信时（其 FxBlox 热点 10.42.0.1，或它在您 Wi-Fi 中的地址），Chrome 会弹出提示，询问是否允许访问本地网络中的设备。请选择「允许」。如果您关闭了提示，可以在下方地址重新启用。"
+      "intro": "我们已检查您的浏览器。任何需要您处理的事项都会显示在下方。",
+      "allGood": "您的浏览器已就绪——这里无需任何操作。",
+      "browser": {
+        "title": "此浏览器无法使用",
+        "body": "设置 Blox 需要在电脑或 Android 手机上使用 Chrome 或 Edge。请使用其中之一打开本页面。"
       },
-      "bluetooth": {
-        "title": "蓝牙",
-        "body": "「通过蓝牙连接」会打开 Chrome 的设备选择器。请选择名为 fulatower 或 fxblox 的设备并点击「配对」。如果您可以加入 FxBlox 热点，蓝牙是可选的。"
+      "lna": {
+        "title": "您的浏览器正在阻止访问您的网络",
+        "body": "需要本地网络访问权限才能连接到您的 Blox。",
+        "blocked": "本网站未获准访问您网络中的设备，因此无法找到您的 Blox。请在下方地址重新开启，然后刷新本页面。"
       },
       "camera": {
-        "title": "摄像头（可选）",
-        "body": "扫描配对二维码（自动固定配对）时会请求摄像头权限。您也可以改为粘贴代码。"
-      },
-      "chromium": {
-        "title": "需要 Chrome 或 Edge",
-        "body": "Web Bluetooth 和本地网络权限仅在桌面和 Android 上的 Chromium 浏览器（Chrome、Edge）中可用。"
-      },
-      "status": {
-        "title": "当前浏览器",
-        "chromium": "Chromium 浏览器",
-        "webBluetooth": "Web Bluetooth",
-        "lna": "本地网络访问",
-        "camera": "摄像头",
-        "available": "可用",
-        "unavailable": "不可用",
-        "granted": "已允许",
-        "denied": "已阻止",
-        "prompt": "将会询问",
-        "unsupported": "无需权限"
+        "title": "摄像头",
+        "optional": "仅在您想扫描配对二维码时才需要。您也可以直接输入配对码。",
+        "allow": "允许使用摄像头",
+        "refused": "您的浏览器未允许此权限。您仍可以直接输入配对码，或稍后在浏览器的网站设置中开启摄像头。"
       },
       "language": "语言",
       "continue": "继续"
