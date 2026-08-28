@@ -28,6 +28,17 @@ import { renderSetupAt, resetStores } from './renderSetup';
 const lanFetchMock = lanFetch as unknown as ReturnType<typeof vi.fn>;
 const bleState = () => ble.state!;
 
+/**
+ * The hotspot is now the LAST resort, not a peer option: Bluetooth is tried first, and the LAN step is offered
+ * before it. These tests are about the hotspot check, so they walk the user to that stage the way a real user
+ * reaches it — Bluetooth fails, then "I don't know the address".
+ */
+async function reachHotspotStage() {
+  bleState().supported = false;
+  await userEvent.click(await screen.findByTestId('connect-ble'));
+  await userEvent.click(await screen.findByTestId('lan-skip'));
+  return screen.findByTestId('hotspot-check');
+}
 describe('ConnectToBlox', () => {
   beforeEach(() => {
     resetStores({ identity: true });
@@ -42,31 +53,31 @@ describe('ConnectToBlox', () => {
     expect(await screen.findByRole('heading', { name: 'Connect to Blox' })).toBeInTheDocument();
     expect(screen.getByTestId('led-guide')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '40');
-    await userEvent.click(screen.getByTestId('hotspot-check'));
+    await userEvent.click(await reachHotspotStage());
     await waitFor(() => expect(router.state.location.pathname).toBe('/setup/set-authorizer'));
     expect(String(lanFetchMock.mock.calls[0]![0])).toBe(`${API_URL}/properties`);
     expect((lanFetchMock.mock.calls[0]![1] as { method: string }).method).toBe('HEAD');
   });
 
+  // The `instructions` column is gone: the hotspot instructions are now simply the content of the hotspot
+  // stage, so they are on screen for every failure kind once the user has got that far. What still varies —
+  // and what this table is actually about — is which help card the failure selects.
   it.each([
-    ['lna-denied', 'Local network access is blocked', false],
-    ['cors', 'Blox firmware needs an update for browser access', false],
-    ['unreachable', 'The hotspot did not answer', true],
-    ['timeout', 'The Blox did not answer in time', true],
-  ] as const)('hotspot check failure %s shows its help card', async (kind, title, instructions) => {
+    ['lna-denied', 'Local network access is blocked'],
+    ['cors', 'Blox firmware needs an update for browser access'],
+    ['unreachable', 'The hotspot did not answer'],
+    ['timeout', 'The Blox did not answer in time'],
+  ] as const)('hotspot check failure %s shows its help card', async (kind, title) => {
     lanFetchMock.mockRejectedValue(new LanHttpError(kind, `${API_URL}/properties`, kind));
     const { router } = await renderSetupAt('/setup/connect-blox');
-    await userEvent.click(await screen.findByTestId('hotspot-check'));
+    await userEvent.click(await reachHotspotStage());
     expect(await screen.findByTestId(`lan-error-${kind}`)).toHaveTextContent(title);
     expect(screen.getByTestId('connection-status')).toHaveTextContent(
       'Unable to connect to Hotspot',
     );
     expect(await screen.findByText('Connection error')).toBeInTheDocument();
-    if (instructions) {
-      expect(screen.getByTestId('hotspot-instructions')).toHaveTextContent(/FxBlox/);
-    } else {
-      expect(screen.queryByTestId('hotspot-instructions')).toBeNull();
-    }
+    // The user is on the hotspot stage, so the join instructions stay on screen behind the help card.
+    expect(screen.getByTestId('hotspot-instructions')).toHaveTextContent(/FxBlox/);
     if (kind === 'lna-denied') {
       expect(screen.getByText('chrome://settings/content/localNetworkAccess')).toBeInTheDocument();
     }
@@ -93,7 +104,7 @@ describe('ConnectToBlox', () => {
       return new Response('{"status":"ready"}');
     });
     const { router } = await renderSetupAt('/setup/connect-blox');
-    await userEvent.click(await screen.findByTestId('hotspot-check'));
+    await userEvent.click(await reachHotspotStage());
     expect(await screen.findByTestId('lan-error-unreachable')).toBeInTheDocument();
     // Now the Blox comes up: useHotspotReachable polls GET /readiness every 3 s and the next tick succeeds.
     readinessOk = true;
@@ -131,17 +142,82 @@ describe('ConnectToBlox', () => {
     expect(screen.queryByText('Connection failed')).toBeNull();
   });
 
-  it('Bluetooth unavailable → BLE failed status, hotspot instructions and no auto HTTP check', async () => {
+  it('Bluetooth unavailable → offers the LAN step, NOT the hotspot, and fires no HTTP check', async () => {
     bleState().supported = false;
     await renderSetupAt('/setup/connect-blox');
+    // One hint per stage, about the button in front of the user. On arrival that is the device chooser; the
+    // local-network explainer would describe a permission nothing is about to ask for.
+    expect(screen.getByText(/device chooser opens/)).toBeInTheDocument();
+    expect(screen.queryByText(/access devices on your local network/)).toBeNull();
     await userEvent.click(await screen.findByTestId('connect-ble'));
-    expect(await screen.findByTestId('hotspot-instructions')).toBeInTheDocument();
+    expect(await screen.findByText(/access devices on your local network/)).toBeInTheDocument();
+    expect(screen.queryByText(/device chooser opens/)).toBeNull();
+    // The order is Bluetooth → LAN → hotspot. The hotspot costs the user their internet, so it stays last.
+    expect(await screen.findByTestId('lan-step')).toBeInTheDocument();
+    expect(screen.queryByTestId('hotspot-instructions')).toBeNull();
+    expect(screen.queryByTestId('hotspot-check')).toBeNull();
     expect(screen.getByTestId('connection-status')).toHaveTextContent(
       'Unable to connect via Bluetooth, trying WiFi...',
     );
     expect(
       await screen.findByText('Web Bluetooth is not available in this browser.'),
     ).toBeInTheDocument();
+    // Nothing is probed on entering the step: the Bluetooth chooser may have consumed the user activation
+    // Chrome's local-network prompt needs, so the LAN probe must wait for its own button press.
     expect(lanFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('LAN step: a typed address that answers goes straight to Set authorizer', async () => {
+    bleState().supported = false;
+    lanFetchMock.mockResolvedValue(new Response(''));
+    const { router } = await renderSetupAt('/setup/connect-blox');
+    await userEvent.click(await screen.findByTestId('connect-ble'));
+    await userEvent.type(await screen.findByTestId('lan-ip-input'), '192.168.1.50');
+    await userEvent.click(screen.getByTestId('lan-connect'));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/setup/set-authorizer'));
+    // Probed the typed Blox, not the hotspot address, and carried the ip to the next step.
+    expect(String(lanFetchMock.mock.calls[0]![0])).toBe('http://192.168.1.50:3500/properties');
+    expect(router.state.location.search).toContain('192.168.1.50');
+  });
+
+  it('LAN step: an address outside the home network is refused without a request', async () => {
+    bleState().supported = false;
+    await renderSetupAt('/setup/connect-blox');
+    await userEvent.click(await screen.findByTestId('connect-ble'));
+    await userEvent.type(await screen.findByTestId('lan-ip-input'), '8.8.8.8');
+    await userEvent.click(screen.getByTestId('lan-connect'));
+
+    // The hard backstop: setup traffic — including the call that CLAIMS the box — never leaves the LAN.
+    expect(await screen.findByTestId('lan-ip-rejected')).toBeInTheDocument();
+    expect(lanFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('LAN step: no answer reads as "not found here", not as an error card', async () => {
+    bleState().supported = false;
+    lanFetchMock.mockRejectedValue(
+      new LanHttpError('unreachable', 'http://192.168.1.50:3500/properties', 'unreachable'),
+    );
+    await renderSetupAt('/setup/connect-blox');
+    await userEvent.click(await screen.findByTestId('connect-ble'));
+    await userEvent.type(await screen.findByTestId('lan-ip-input'), '192.168.1.50');
+    await userEvent.click(screen.getByTestId('lan-connect'));
+
+    // Silence is the expected outcome on firmware without the LAN setup listener, and on a Blox that simply
+    // is not on this network — so it must not shout. The user can still fall through to the hotspot.
+    expect(await screen.findByTestId('lan-not-found')).toBeInTheDocument();
+    expect(screen.queryByTestId('lan-error-unreachable')).toBeNull();
+    expect(screen.getByTestId('lan-skip')).toBeInTheDocument();
+  });
+
+  it('LAN step: "I don\'t know the address" advances to the hotspot instructions', async () => {
+    bleState().supported = false;
+    await renderSetupAt('/setup/connect-blox');
+    await userEvent.click(await screen.findByTestId('connect-ble'));
+    await userEvent.click(await screen.findByTestId('lan-skip'));
+
+    expect(await screen.findByTestId('hotspot-instructions')).toBeInTheDocument();
+    expect(screen.getByTestId('hotspot-check')).toBeInTheDocument();
+    expect(screen.queryByTestId('lan-step')).toBeNull();
   });
 });

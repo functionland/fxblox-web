@@ -48,6 +48,7 @@ vi.mock('@/lib/fula', () => ({
 }));
 
 import * as api from '@/api/bloxHardware';
+import * as wifi from '@/api/wifi';
 import { useBloxsStore } from '@/stores';
 import { _setTimingsForTests as setAuthorizerTimings } from '../SetBloxAuthorizer';
 import { _setTimingsForTests as setCheckTimings } from '../CheckConnection';
@@ -57,6 +58,10 @@ import { renderSetupAt, resetStores, TEST_APP_PEER_ID, TEST_BLOX_PEER_ID } from 
 describe('setup flow navigation order', () => {
   const restores: Array<() => void> = [];
   beforeEach(() => {
+    // Usage data only — the factory implementations above survive, and the mockResolvedValue calls below
+    // re-arm the rest. Without this the second test sees the first test's calls and cannot assert that the
+    // LAN path never touched the hotspot API.
+    vi.clearAllMocks();
     resetStores({ identity: true, appPeerId: TEST_APP_PEER_ID });
     (api.getBloxProperties as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: {
@@ -67,6 +72,18 @@ describe('setup flow navigation order', () => {
       },
     });
     (api.exchangeConfig as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { peer_id: TEST_BLOX_PEER_ID },
+    });
+    // The ip-scoped twins, used when the Blox was reached at a typed LAN address instead of the hotspot.
+    (api.getBloxPropertiesAtIp as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        hardwareID: 'hw',
+        restartNeeded: 'false',
+        kubo_peer_id: TEST_BLOX_PEER_ID,
+        bloxFreeSpace: { size: 10, avail: 9, used: 1, used_percentage: 10, device_count: 1 },
+      },
+    });
+    (api.exchangeConfigAtIp as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: { peer_id: TEST_BLOX_PEER_ID },
     });
     restores.push(
@@ -109,7 +126,12 @@ describe('setup flow navigation order', () => {
     expect(await screen.findByTestId('did')).toHaveTextContent('did:key:zFlow');
     await user.click(screen.getByTestId('setup-continue')); // LinkPassword (existing identity)
     await at('/setup/connect-blox', 'connect-blox');
-    await user.click(screen.getByTestId('hotspot-check')); // ConnectToBlox (hotspot answers)
+    // ConnectToBlox asks one question at a time: Bluetooth, then the LAN address, then the hotspot. There is
+    // no Web Bluetooth in jsdom, so the first button fails through to the LAN step; "I don't know the
+    // address" reaches the hotspot check, which the mocked lanFetch answers.
+    await user.click(screen.getByTestId('connect-ble'));
+    await user.click(await screen.findByTestId('lan-skip'));
+    await user.click(await screen.findByTestId('hotspot-check'));
     await at('/setup/set-authorizer', 'set-authorizer');
     await screen.findByTestId('blox-peer-id-value'); // auto exchange done
     await user.click(screen.getByTestId('setup-continue')); // SetBloxAuthorizer → Wi-Fi
@@ -149,5 +171,40 @@ describe('setup flow navigation order', () => {
     ]);
     // Home is a `replace`: Back from /blox does not return into the setup flow.
     expect(window.history.state?.idx ?? router.state.location.state?.idx).not.toBe(9);
+  });
+
+  it('the LAN address entry point talks to that address and skips the Wi-Fi step', async () => {
+    const user = userEvent.setup();
+    const { router } = await renderSetupAt('/setup/connect-blox');
+    await screen.findByTestId('setup-connect-blox');
+    // No Web Bluetooth in jsdom, so the first button falls through to the LAN step.
+    await user.click(screen.getByTestId('connect-ble'));
+    await user.type(await screen.findByTestId('lan-ip-input'), '192.168.1.50');
+    await user.click(screen.getByTestId('lan-connect'));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/setup/set-authorizer'), {
+      timeout: 20_000,
+    });
+    await screen.findByTestId('setup-set-authorizer');
+    await screen.findByTestId('blox-peer-id-value');
+    // Every call is addressed to the Blox the user typed, never to the hotspot address.
+    expect(api.getBloxPropertiesAtIp).toHaveBeenCalledWith('192.168.1.50', 3500);
+    expect(api.exchangeConfigAtIp).toHaveBeenCalledWith(
+      '192.168.1.50',
+      3500,
+      expect.objectContaining({ peer_id: TEST_APP_PEER_ID }),
+    );
+    expect(api.getBloxProperties).not.toHaveBeenCalled();
+    expect(api.exchangeConfig).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId('setup-continue'));
+    // A Blox already on the home network has no Wi-Fi left to join, and every Wi-Fi/hotspot endpoint is
+    // served only at 10.42.0.1 — so this path goes straight to Setup complete. Routing it through
+    // ConnectToWifi would hand the user a step that cannot answer, and CheckConnection would tell them to
+    // leave a hotspot they never joined.
+    await waitFor(() => expect(router.state.location.pathname).toBe('/setup/complete'), {
+      timeout: 20_000,
+    });
+    expect(wifi.getWifiList).not.toHaveBeenCalled();
   });
 });
