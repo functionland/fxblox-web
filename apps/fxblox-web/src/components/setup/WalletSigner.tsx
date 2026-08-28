@@ -133,8 +133,12 @@ export default function WalletSigner({
         await w.open({ view: 'Connect' });
       } catch (err) {
         awaitingConnectionRef.current = false;
-        setPhase('idle');
         latest.current.onError(err);
+      } finally {
+        // AppKit resolves `open()` once the modal is UP, not when it closes. Staying busy past that point
+        // would leave anyone who dismisses the chooser without picking a wallet looking at a Cancel button
+        // and no way back to Sign. The flag above still catches the connection if they do pick one.
+        setPhase('idle');
       }
       return;
     }
