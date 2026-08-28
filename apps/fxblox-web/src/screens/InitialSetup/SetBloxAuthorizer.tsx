@@ -34,6 +34,7 @@ import {
   type ExchangeResponse,
   type GeneralResponse,
 } from '@/api/bloxHardware';
+import { API_URL, apiUrlFor } from '@/api';
 import { paths } from '@/app/paths';
 import { runBleCommand } from '@/components/setup/ble';
 import { DiskCard } from '@/components/setup/DiskCard';
@@ -88,6 +89,9 @@ export default function SetBloxAuthorizer() {
   const deviceIp = search.get('ip') || undefined;
   const devicePort = Number(search.get('port')) || DEFAULT_WAP_PORT;
   const isLanSetup = !!deviceIp;
+  // Where this screen's plain HTTP calls go. The exchange and properties calls pick their own ip-scoped
+  // variant; these are the ones that would otherwise always talk to the hotspot.
+  const setupBaseUrl = deviceIp ? apiUrlFor(deviceIp, devicePort) : API_URL;
 
   const [newPeerId, setNewPeerId] = useState<string | undefined>(undefined);
   const [newBloxPeerId, setNewBloxPeerId] = useState<string | undefined>(undefined);
@@ -150,11 +154,11 @@ export default function SetBloxAuthorizer() {
     refetch: refetch_bloxFormatDisk,
   } = useFetch<{ data: GeneralResponse }, undefined>({
     initialLoading: false,
-    apiMethod: () => bloxFormatDisk(),
+    apiMethod: () => bloxFormatDisk(setupBaseUrl),
   });
   const { refetch: refetch_bloxDeleteFulaConfig } = useFetch<{ data: GeneralResponse }, undefined>({
     initialLoading: false,
-    apiMethod: () => bloxDeleteFulaConfig(),
+    apiMethod: () => bloxDeleteFulaConfig(setupBaseUrl),
   });
   const {
     loading: loading_bloxProperties,
