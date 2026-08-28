@@ -196,6 +196,45 @@ export async function probeNoCors(
 }
 
 /**
+ * Ask the browser for local-network access, from inside a user gesture.
+ *
+ * There is no `permissions.request()` for this: the only way to raise Chrome's prompt is to make a request
+ * that asserts `targetAddressSpace` while a user gesture is being handled. So this must be called DIRECTLY
+ * from a click handler — awaiting anything first spends the gesture and the prompt will not appear.
+ *
+ * It reports the permission state afterwards rather than whether the fetch worked, because the fetch can fail
+ * for unrelated reasons (the Blox really is off). Callers use the state to decide what to tell the user:
+ *
+ *   'granted'  → access allowed; retry the real request
+ *   'prompt'   → the browser never asked, or the user dismissed it. Chrome does not always show the prompt —
+ *                measured on Chrome 151 from both an http://localhost page and https://docs.fx.land, where a
+ *                gesture-driven request with targetAddressSpace failed and the state stayed 'prompt' with no
+ *                dialog. Fall back to telling the user to allow it in site settings.
+ *   'denied'   → the user (or policy) refused; only site settings can undo it.
+ */
+export async function requestLocalNetworkAccess(url: string, deps: { fetchImpl?: FetchLike } = {}): Promise<LnaPermissionState> {
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  try {
+    const init: RequestInit & { targetAddressSpace?: 'local' } = {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-store',
+      credentials: 'omit',
+      signal: controller.signal,
+    };
+    if (needsAddressSpaceAssertion(url)) init.targetAddressSpace = 'local';
+    await fetchImpl(url, init);
+  } catch {
+    // Expected when access is refused or the Blox is unreachable; the permission state is the answer.
+  } finally {
+    clearTimeout(timer);
+  }
+  return lnaPermissionState();
+}
+
+/**
  * Turn an opaque `TypeError: Failed to fetch` into one of the taxonomy kinds.
  */
 export async function classifyNetworkFailure(
@@ -302,4 +341,4 @@ export async function lanJson<T = unknown>(url: string, init: LanRequestInit = {
   return { data: parseBody<T>(text), status: res.status, headers: res.headers };
 }
 
-export const lanHttp = { fetch: lanFetch, json: lanJson, probeNoCors, classifyNetworkFailure, lnaPermissionState, buildLanRequest, isLocalTarget };
+export const lanHttp = { fetch: lanFetch, json: lanJson, probeNoCors, classifyNetworkFailure, lnaPermissionState, requestLocalNetworkAccess, buildLanRequest, isLocalTarget };

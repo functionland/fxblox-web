@@ -97,6 +97,9 @@
         "unreachableBody": "请确保此设备已连接到名为「FxBlox」的 Wi-Fi 网络（而非您的家庭网络），并且 Blox 已开机。",
         "timeoutTitle": "Blox 未及时响应",
         "timeoutBody": "Blox 可能仍在启动。请等待淡蓝色 LED 亮起后重试。",
+        "lnaActionHint": "浏览器尚未获得访问本地网络设备的权限。通过 Wi-Fi 与 Blox 通信需要此权限。",
+        "lnaAllowButton": "允许访问本地网络",
+        "lnaNoPrompt": "浏览器未显示权限对话框。请在站点设置中允许本站访问本地网络，然后重试。",
         "openSettings": "复制此地址并粘贴到 Chrome 的地址栏："
       }
     },

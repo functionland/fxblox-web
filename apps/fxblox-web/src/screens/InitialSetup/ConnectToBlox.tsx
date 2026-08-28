@@ -230,7 +230,13 @@ export default function ConnectToBlox() {
                 {t('setup.connectToBlox.checkingHotspot')}
               </FxText>
             )}
-            {lanError && <LanErrorCard kind={lanError} />}
+            {lanError && (
+              <LanErrorCard
+                kind={lanError}
+                probeUrl={`${API_URL}/properties`}
+                onGranted={() => void checkHotspot()}
+              />
+            )}
             {showHotspotInstructions && (
               <FxBox gap="8" testID="hotspot-instructions">
                 <FxText variant="bodyMediumRegular" textAlign="center" color="content1">

@@ -97,6 +97,9 @@
         "unreachableBody": "Make sure this device is connected to the Wi-Fi network \"FxBlox\" (not your home network) and that the Blox is powered on.",
         "timeoutTitle": "The Blox did not answer in time",
         "timeoutBody": "The Blox may still be booting. Wait for the light-blue LED and try again.",
+        "lnaActionHint": "Your browser has not been allowed to reach devices on your local network yet. That permission is required to talk to the Blox over Wi-Fi.",
+        "lnaAllowButton": "Allow local network access",
+        "lnaNoPrompt": "Your browser did not show a permission dialog. Allow this site's local network access in site settings, then try again.",
         "openSettings": "Copy this address and paste it into Chrome's address bar:"
       }
     },
