@@ -6,7 +6,7 @@
  */
 import { kvStore, type KeyValueStore } from '../kvStore';
 import type { BlePeripheralInfo, BleTransport } from './types';
-import { BleSession, isFxBloxDeviceName, type BleSessionOptions } from './webBluetooth';
+import { BleSession, isFxBloxDeviceName, sessionForDevice, type BleSessionOptions } from './webBluetooth';
 import { setDefaultTransportResolver } from './responseAssembler';
 
 export const BLE_DEVICE_MAP_KEY = 'fx.bleDeviceMap.v1';
@@ -50,9 +50,13 @@ export class BleRegistryImpl {
   }
 
   register(session: BleSession, opts: { makeCurrent?: boolean } = {}): BleSession {
+    // `connectBle()` registers on every Connect press and now hands back the same session object, so the emit
+    // subscription is added only the first time this exact session is seen. Re-adding it made `emit()` fire
+    // once per past press — the same accumulating-listener bug that stacked sessions caused on the device.
+    const alreadyKnown = this.sessions.get(session.id) === session;
     this.sessions.set(session.id, session);
     if (opts.makeCurrent ?? true) this.currentId = session.id;
-    session.onDisconnect(() => this.emit());
+    if (!alreadyKnown) session.onDisconnect(() => this.emit());
     this.emit();
     return session;
   }
@@ -132,7 +136,8 @@ export class BleRegistryImpl {
     const known = await BleSession.knownDevices();
     const device = known.find((d) => d.id === deviceId);
     if (!device) return null;
-    return this.register(new BleSession(device, opts), { makeCurrent: false });
+    // sessionForDevice, not `new BleSession`: two sessions over one device race each other's GATT operations.
+    return this.register(sessionForDevice(device, opts), { makeCurrent: false });
   }
 
   /** True when the current session is bound to a DIFFERENT blox than `bloxPeerId` (surface the mismatch). */
