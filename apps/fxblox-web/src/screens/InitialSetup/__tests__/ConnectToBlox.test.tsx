@@ -145,11 +145,14 @@ describe('ConnectToBlox', () => {
   it('Bluetooth unavailable → offers the LAN step, NOT the hotspot, and fires no HTTP check', async () => {
     bleState().supported = false;
     await renderSetupAt('/setup/connect-blox');
+    // Wait for the lazy screen to commit before reading it. `renderSetupAt` resolving is not the same as the
+    // route module being on screen, and a synchronous query here passes on a fast machine and fails in CI.
+    const connect = await screen.findByTestId('connect-ble');
     // One hint per stage, about the button in front of the user. On arrival that is the device chooser; the
     // local-network explainer would describe a permission nothing is about to ask for.
     expect(screen.getByText(/device chooser opens/)).toBeInTheDocument();
     expect(screen.queryByText(/access devices on your local network/)).toBeNull();
-    await userEvent.click(await screen.findByTestId('connect-ble'));
+    await userEvent.click(connect);
     expect(await screen.findByText(/access devices on your local network/)).toBeInTheDocument();
     expect(screen.queryByText(/device chooser opens/)).toBeNull();
     // The order is Bluetooth → LAN → hotspot. The hotspot costs the user their internet, so it stays last.
