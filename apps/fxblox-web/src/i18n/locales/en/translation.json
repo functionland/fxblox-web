@@ -79,7 +79,7 @@
         "executionSuccess": "Action completed in {{ms}}ms",
         "executionFailure": "Action failed",
         "errorEvent": "[{{code}}] {{message}}",
-        "errorEvent_noTransport": "Cannot reach your Blox over LAN or Bluetooth. Make sure your Blox is powered on, connected to the internet, and that your phone is on the same WiFi network — then try again.",
+        "errorEvent_noTransport": "Cannot reach your Blox over the local network or Bluetooth. Blox AI runs on the Blox itself, so this browser has to be on the same network as it. Check the Blox is powered on and on this network, then either enter its IP address below or connect over Bluetooth.",
         "yes": "Yes",
         "no": "No",
         "replyPlaceholder": "Type your reply…",

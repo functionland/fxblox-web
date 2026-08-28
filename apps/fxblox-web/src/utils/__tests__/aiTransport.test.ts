@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 vi.mock('../lanIpCache', () => ({
   findAuthorizedBlox: vi.fn(),
   refreshOnce: vi.fn().mockResolvedValue(undefined),
+  rememberedLanIp: vi.fn().mockResolvedValue(null),
   noteRecord: vi.fn(),
   clear: vi.fn(),
 }));
@@ -21,6 +22,7 @@ import { HttpAiClient } from '../httpAiClient';
 
 const findAuthorizedBlox = lanIpCache.findAuthorizedBlox as unknown as ReturnType<typeof vi.fn>;
 const refreshOnce = lanIpCache.refreshOnce as unknown as ReturnType<typeof vi.fn>;
+const rememberedLanIp = lanIpCache.rememberedLanIp as unknown as ReturnType<typeof vi.fn>;
 const HttpAiClientMock = HttpAiClient as unknown as ReturnType<typeof vi.fn>;
 
 function record(over: Record<string, unknown> = {}, host = '192.168.1.50') {
@@ -40,8 +42,20 @@ function record(over: Record<string, unknown> = {}, host = '192.168.1.50') {
 beforeEach(() => {
   findAuthorizedBlox.mockReset();
   refreshOnce.mockReset().mockResolvedValue(undefined);
+  rememberedLanIp.mockReset().mockResolvedValue(null);
   HttpAiClientMock.mockReset();
 });
+
+/** `new HttpAiClient(ip, port)` whose /health succeeds only for `healthyIp`. */
+function clientHealthyAt(healthyIp: string) {
+  return (ip: string, port: number) => ({
+    ip,
+    port,
+    health: vi
+      .fn()
+      .mockResolvedValue(ip === healthyIp ? { ok: true, latencyMs: 7 } : { ok: false, latencyMs: 1000 }),
+  });
+}
 
 describe('ipIsPrivateLan — RFC1918 + link-local accept; loopback reject', () => {
   test.each([
@@ -98,7 +112,7 @@ describe('selectAiTransport — fall back to BLE', () => {
     const choice = await selectAiTransport('BLOX1', 'APP1');
     expect(choice.kind).toBe('ble');
     expect(refreshOnce).not.toHaveBeenCalled();
-    expect(choice.reason).toMatch(/no fresh mDNS record/);
+    expect(choice.reason).toMatch(/no LAN candidate/);
   });
 
   test('no record + scanIfEmpty=true → triggers refreshOnce (opt-in) with both peer ids', async () => {
@@ -188,7 +202,7 @@ describe('selectAiTransport — manual IP fallback', () => {
     }));
     const choice = await selectAiTransport('BLOX1', 'APP1', { manualIp: '192.168.1.77', scanIfEmpty: false });
     expect(choice.kind).toBe('ble');
-    expect(choice.reason).toMatch(/no fresh mDNS record/);
+    expect(choice.reason).toMatch(/no LAN candidate/);
     expect(HttpAiClientMock).toHaveBeenCalledWith('192.168.1.77', 8083);
   });
 
@@ -216,5 +230,74 @@ describe('selectAiTransport — manual IP fallback', () => {
     expect(choice.kind).toBe('ble');
     expect(choice.reason).toMatch(/missing bloxPeerId or appPeerId/);
     expect(HttpAiClientMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A browser has no mDNS, so without this tier the only automatic LAN candidate was a record from the current
+ * page session. A reload therefore left Blox AI with nothing to try — /find-box is blocked for browsers and no
+ * manual IP is set by default — and it reported "Cannot reach your Blox over LAN or Bluetooth" about a Blox
+ * that setup had successfully talked to minutes earlier.
+ */
+describe('selectAiTransport — remembered LAN IP from a previous session', () => {
+  test('no fresh record and no manual IP → the remembered address is probed and used', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    rememberedLanIp.mockResolvedValue({ ip: '192.168.2.159', authorizer: 'APP1', savedAt: 1 });
+    HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.2.159'));
+
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: true });
+
+    expect(choice.kind).toBe('lan-http');
+    expect(choice.reason).toMatch(/remembered IP 192\.168\.2\.159/);
+    expect(HttpAiClientMock).toHaveBeenCalledWith('192.168.2.159', 8083);
+    // It answered, so the (browser-blocked) discovery refresh was never needed.
+    expect(refreshOnce).not.toHaveBeenCalled();
+  });
+
+  test('age is not a gate — only the /health probe decides', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    rememberedLanIp.mockResolvedValue({ ip: '192.168.2.159', authorizer: 'APP1', savedAt: 0 }); // ancient
+    HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.2.159'));
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: false });
+    expect(choice.kind).toBe('lan-http');
+  });
+
+  test('the Blox moved: the remembered address no longer answers → falls through, never strands', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    rememberedLanIp.mockResolvedValue({ ip: '192.168.2.159', authorizer: 'APP1', savedAt: Date.now() });
+    HttpAiClientMock.mockImplementation(clientHealthyAt('nothing-answers-here'));
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: false });
+    expect(choice.kind).toBe('ble');
+    expect(HttpAiClientMock).toHaveBeenCalledWith('192.168.2.159', 8083);
+  });
+
+  test('a typed manual IP wins over the remembered one — the user is correcting us', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    rememberedLanIp.mockResolvedValue({ ip: '192.168.2.159', authorizer: 'APP1', savedAt: Date.now() });
+    HttpAiClientMock.mockImplementation(() => ({
+      health: vi.fn().mockResolvedValue({ ok: true, latencyMs: 5 }),
+    }));
+    const choice = await selectAiTransport('BLOX1', 'APP1', { manualIp: '192.168.1.77', scanIfEmpty: false });
+    expect(choice.reason).toMatch(/manual IP 192\.168\.1\.77/);
+    expect(HttpAiClientMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('a fresh record still wins over the remembered address', async () => {
+    findAuthorizedBlox.mockReturnValue(record());
+    rememberedLanIp.mockResolvedValue({ ip: '192.168.2.159', authorizer: 'APP1', savedAt: Date.now() });
+    HttpAiClientMock.mockImplementation(() => ({
+      health: vi.fn().mockResolvedValue({ ok: true, latencyMs: 5 }),
+    }));
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: false });
+    expect(choice.reason).toMatch(/mDNS verified/);
+    expect(HttpAiClientMock).toHaveBeenCalledWith('192.168.1.50', 8083);
+  });
+
+  test('a remembered port is honoured over the default', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    rememberedLanIp.mockResolvedValue({ ip: '192.168.2.159', port: 9099, authorizer: 'APP1', savedAt: 1 });
+    HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.2.159'));
+    await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: false });
+    expect(HttpAiClientMock).toHaveBeenCalledWith('192.168.2.159', 9099);
   });
 });
