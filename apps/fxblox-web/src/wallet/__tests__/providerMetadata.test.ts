@@ -26,4 +26,12 @@ describe('providerMetadata.url', () => {
     expect(providerMetadata.name).toBe('FxBlox');
     expect(providerMetadata.icons.length).toBeGreaterThan(0);
   });
+
+  it('tells the wallet where to send the user back to', () => {
+    // Without this the wallet has nothing to return to: a phone user approves, and is simply left sitting in
+    // their wallet app having to find the browser again by hand.
+    expect(providerMetadata.redirect.universal).toBe(providerMetadata.url);
+    // A web app has no custom scheme of its own, and a non-empty native here would send the wallet nowhere.
+    expect(providerMetadata.redirect.native).toBe('');
+  });
 });

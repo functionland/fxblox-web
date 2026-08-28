@@ -29,6 +29,8 @@ import { paths } from '@/app/paths';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SetupNav } from '@/components/setup/SetupNav';
 import { SetupScreen } from '@/components/setup/SetupScreen';
+// Type only — importing the value would pull the AppKit chunk into the initial bundle.
+import type { SignerPhase } from '@/components/setup/WalletSigner';
 import { useAppNavigate } from '@/hooks/useAppNavigate';
 import { useLogger } from '@/hooks/useLogger';
 import { kvStore } from '@/platform/kvStore';
@@ -103,6 +105,7 @@ export default function LinkPassword() {
   const [iKnow, setIKnow] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [walletPhase, setWalletPhase] = useState<SignerPhase>('idle');
   const [signatureData, setSignatureData] = useState<string>('');
   const [passwordInput, setPasswordInput] = useState('');
   const [manualSignature, setManualSignature] = useState(false);
@@ -383,7 +386,19 @@ export default function LinkPassword() {
             />
           ) : (
             <FxBox alignItems="center" paddingVertical="12">
-              <FxSpinner size="large" label={t('linkPassword.connectingWallet')} />
+              {/*
+                "Connecting" and "waiting for you to approve a signature" are different waits, and calling the
+                second one "Connecting Wallet…" tells a user who has already connected that nothing has
+                happened yet.
+              */}
+              <FxSpinner
+                size="large"
+                label={
+                  walletPhase === 'signing'
+                    ? t('setup.linkPassword.approveInWallet')
+                    : t('linkPassword.connectingWallet')
+                }
+              />
             </FxBox>
           )}
 
@@ -488,8 +503,8 @@ export default function LinkPassword() {
                 <WalletSigner
                   password={passwordInput}
                   disabled={!passwordInput || !iKnow || !walletOpen}
-                  linking={linking}
                   onLinkingChange={setLinking}
+                  onPhaseChange={setWalletPhase}
                   onSignature={setSignatureData}
                   onError={onWalletError}
                   signLabel={t('linkPassword.signWithWallet')}

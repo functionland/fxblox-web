@@ -61,7 +61,10 @@
       "clearAppStorageWebMessage": "This deletes everything FxBlox stored in this browser — identity, Blox list, settings and caches — and reloads the page.",
       "clearAppStorageConfirm": "Clear and reload",
       "clearAppStorageFailed": "Could not clear the app storage",
-      "signaturePortalHint": "Sign at fxblox.fx.land, then paste the signature below together with the wallet address you signed with."
+      "signaturePortalHint": "Sign at fxblox.fx.land, then paste the signature below together with the wallet address you signed with.",
+      "walletConnectedTapSign": "Wallet connected. Tap below to approve the signature — this opens your wallet again.",
+      "approveInWallet": "Approve the request in your wallet…",
+      "openWalletToApprove": "Open wallet to approve"
     },
     "connectToBlox": {
       "intro": "Turn your Blox on, then connect to it with Bluetooth. We'll suggest other ways if that doesn't work.",
