@@ -27,6 +27,7 @@ vi.mock('@/platform/bluetooth', async (importOriginal) => {
   return mockBluetoothModule(actual, ble.state);
 });
 
+import { API_URL } from '@/api';
 import * as api from '@/api/bloxHardware';
 import { BleRegistry } from '@/platform/bluetooth';
 import { LanHttpError } from '@/platform/lanHttp';
@@ -188,7 +189,26 @@ describe('SetBloxAuthorizer', () => {
     expect(screen.getByTestId('set-authorizer')).toBeDisabled();
     expect(api.exchangeConfig).not.toHaveBeenCalled();
     await userEvent.click(await screen.findByTestId('format-disk'));
-    await waitFor(() => expect(api.bloxFormatDisk).toHaveBeenCalled());
+    await waitFor(() => expect(api.bloxFormatDisk).toHaveBeenCalledWith(API_URL));
     await waitFor(() => expect(router.state.location.pathname).toBe('/setup/connect-blox'));
+  });
+
+  // The two calls on this screen with no ip-scoped twin. Sent to the hotspot from a home network they go
+  // nowhere: Format Disk becomes a button that does nothing, and the cleanup after a failed exchange silently
+  // does not happen, leaving the box half-claimed.
+  it('LAN path: Format Disk and the post-failure cleanup go to the typed address, not the hotspot', async () => {
+    const props = goodProps();
+    props.data.bloxFreeSpace.size = 0;
+    m(api.getBloxPropertiesAtIp).mockResolvedValue(props);
+    m(api.exchangeConfigAtIp).mockRejectedValue(
+      new LanHttpError('unreachable', 'http://10.0.0.2:3500/peer/exchange', 'unreachable'),
+    );
+    await renderSetupAt('/setup/set-authorizer?ip=10.0.0.2&port=3500');
+
+    await waitFor(() =>
+      expect(api.bloxDeleteFulaConfig).toHaveBeenCalledWith('http://10.0.0.2:3500'),
+    );
+    await userEvent.click(await screen.findByTestId('format-disk'));
+    await waitFor(() => expect(api.bloxFormatDisk).toHaveBeenCalledWith('http://10.0.0.2:3500'));
   });
 });

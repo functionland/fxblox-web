@@ -74,12 +74,21 @@ export const getBloxPropertiesAtIp = async (ip: string, port: number): Promise<{
   return res;
 };
 
-export const bloxFormatDisk = async (): Promise<{ data: GeneralResponse }> => {
-  return lanJson<GeneralResponse>(`${API_URL}/partition`, { method: 'POST' });
+/**
+ * `baseUrl` defaults to the hotspot. Pass an explicit one for a Blox reached at a LAN address: the WAP setup
+ * listener serves the SAME mux there, so these routes exist — but sent to 10.42.0.1 from a home network they
+ * go nowhere, which turns Format Disk into a dead button and drops the post-failure config cleanup.
+ */
+export const bloxFormatDisk = async (
+  baseUrl: string = API_URL,
+): Promise<{ data: GeneralResponse }> => {
+  return lanJson<GeneralResponse>(`${baseUrl}/partition`, { method: 'POST' });
 };
 
-export const bloxDeleteFulaConfig = async (): Promise<{ data: GeneralResponse }> => {
-  return lanJson<GeneralResponse>(`${API_URL}/delete-fula-config`, { method: 'POST' });
+export const bloxDeleteFulaConfig = async (
+  baseUrl: string = API_URL,
+): Promise<{ data: GeneralResponse }> => {
+  return lanJson<GeneralResponse>(`${baseUrl}/delete-fula-config`, { method: 'POST' });
 };
 
 export const getReadinessAtIp = async (ip: string, port = 3500, timeoutMs = 3000): Promise<LanResponse<unknown>> => {

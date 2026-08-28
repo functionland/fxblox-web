@@ -206,5 +206,8 @@ describe('setup flow navigation order', () => {
       timeout: 20_000,
     });
     expect(wifi.getWifiList).not.toHaveBeenCalled();
+    // Nothing on the happy path should have reached for the hotspot-only calls either.
+    expect(api.bloxFormatDisk).not.toHaveBeenCalled();
+    expect(api.bloxDeleteFulaConfig).not.toHaveBeenCalled();
   });
 });
