@@ -49,6 +49,7 @@ vi.mock('@/platform/linking', async (importOriginal) => {
   return { ...actual, assign: vi.fn() };
 });
 
+import { WALLET_NUDGE_MS } from '@/components/setup/WalletSigner';
 import { useUserProfileStore } from '@/stores/useUserProfileStore';
 import * as linking from '@/platform/linking';
 import * as secureStore from '@/platform/secureStore';
@@ -199,7 +200,9 @@ describe('LinkPassword', () => {
 
     // The spinner's label, which is what a waiting user reads. "Connecting Wallet…" would be a lie here.
     expect(await screen.findByLabelText('Approve the request in your wallet…')).toBeInTheDocument();
-    const open = await screen.findByTestId('open-wallet', undefined, { timeout: 8000 });
+    const open = await screen.findByTestId('open-wallet', undefined, {
+      timeout: WALLET_NUDGE_MS + 4000,
+    });
     await user.click(open);
     expect(linking.assign).toHaveBeenCalledWith('metamask://');
 
@@ -209,6 +212,23 @@ describe('LinkPassword', () => {
       approve('0xlate');
     });
     await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xlate'));
+  });
+
+  it('wallet path: dismissing the chooser leaves Sign available, not a stuck Cancel', async () => {
+    const user = userEvent.setup();
+    await renderSetupAt('/setup/link-password');
+    await fillPasswordAndConsent(user);
+    const sign = await screen.findByTestId('sign-with-wallet');
+    await waitFor(() => expect(sign).toBeEnabled());
+
+    // AppKit resolves open() when the modal is UP, not when it closes, so nothing else reports the dismissal.
+    // Treating the screen as busy past that point strands anyone who backs out of the chooser.
+    await user.click(sign);
+    await waitFor(() => expect(wallet.state.open).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByTestId('sign-with-wallet')).toHaveTextContent('Sign with Wallet'),
+    );
+    expect(screen.getByTestId('password-input')).toBeInTheDocument();
   });
 
   it('manual signature path: portal, pasted signature + address, Submit stores the identity', async () => {
