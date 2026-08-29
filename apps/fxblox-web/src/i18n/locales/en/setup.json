@@ -115,6 +115,7 @@
       "peerIdHint": "Paste its Blox peer ID — in the mobile app it's on the Users tab under \"Bloxs' PeerId\", with a copy button. This works from anywhere; the Blox does not need to be on this network.",
       "invalidPeerId": "That doesn't look like a Blox peer ID. It starts with 12D3KooW and is 52 characters long.",
       "addThisBlox": "Add this Blox",
+      "alreadyAdded": "Already added",
       "bloxPeerId": "Blox peer ID",
       "foundOnNetwork": "Found on your network",
       "cancel": "Cancel",

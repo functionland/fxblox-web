@@ -227,7 +227,10 @@ export default function ConnectToExistingBlox() {
             const found = await discoverBloxesOnLan();
             if (scanGeneration.current !== generation) return;
             console.log(`[Scan] mDNS name probe found ${found.length}`, found);
-            setLanFound(found.filter((blox) => !bloxs[blox.peerId]));
+            // Deliberately NOT filtered to Bloxes the app lacks. Hiding the ones it already has meant that
+            // finding your only Blox, already added, rendered "Nothing answered on this network" — which is
+            // false, and is the single most confusing thing this screen could say. They are shown and marked.
+            setLanFound(found);
           } catch (error) {
             console.log('[Scan] mDNS name probe failed', error);
           }
@@ -561,27 +564,41 @@ export default function ConnectToExistingBlox() {
             <FxText variant="bodySmallSemibold" color="content1">
               {t('setup.connectToExistingBlox.foundOnNetwork')}
             </FxText>
-            {lanFound.map((blox) => (
-              <FxCard key={blox.peerId} padding="12" gap="8" testID={`lan-found-${blox.peerId}`}>
-                <FxText variant="bodySmallRegular" color="content1">
-                  {blox.host}
-                </FxText>
-                <PeerIdRow
-                  label={t('setup.connectToExistingBlox.bloxPeerId')}
-                  value={blox.peerId}
-                  testID={`lan-found-peer-${blox.peerId}`}
-                />
-                <FxButton
-                  disabled={!appPeerId}
-                  onPress={() =>
-                    void navigate(paths.setup.setAuthorizer({ manual: true, peerId: blox.peerId }))
-                  }
-                  testID={`lan-found-add-${blox.peerId}`}
-                >
-                  {t('setup.connectToExistingBlox.addThisBlox')}
-                </FxButton>
-              </FxCard>
-            ))}
+            {lanFound.map((blox) => {
+              const known = !!bloxs[blox.peerId];
+              return (
+                <FxCard key={blox.peerId} padding="12" gap="8" testID={`lan-found-${blox.peerId}`}>
+                  <FxBox flexDirection="row" alignItems="center" justifyContent="space-between" gap="8">
+                    <FxText variant="bodySmallRegular" color="content1">
+                      {blox.host}
+                    </FxText>
+                    {known && (
+                      <FxTag testID={`lan-found-known-${blox.peerId}`}>
+                        {t('setup.connectToExistingBlox.alreadyAdded')}
+                      </FxTag>
+                    )}
+                  </FxBox>
+                  <PeerIdRow
+                    label={t('setup.connectToExistingBlox.bloxPeerId')}
+                    value={blox.peerId}
+                    testID={`lan-found-peer-${blox.peerId}`}
+                  />
+                  {!known && (
+                    <FxButton
+                      disabled={!appPeerId}
+                      onPress={() =>
+                        void navigate(
+                          paths.setup.setAuthorizer({ manual: true, peerId: blox.peerId }),
+                        )
+                      }
+                      testID={`lan-found-add-${blox.peerId}`}
+                    >
+                      {t('setup.connectToExistingBlox.addThisBlox')}
+                    </FxButton>
+                  )}
+                </FxCard>
+              );
+            })}
           </FxBox>
         )}
         {!scanning && hasScanned && data.length === 0 && lanFound.length === 0 && (
