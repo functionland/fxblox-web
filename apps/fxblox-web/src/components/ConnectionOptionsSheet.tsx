@@ -1,13 +1,12 @@
 /**
  * Port of apps/box/src/components/ConnectionOptionsSheet.tsx — Retry, Connect blox to Wi-Fi, and the two
  * pools.fx.land pings (`/ping` for the kubo peer id, `/ping-cluster` for the cluster) with inline status.
- * axios → fetch: the reachability pre-check is a `no-cors` probe (an opaque response proves the host answered).
+ * axios → fetch. There is no reachability pre-check — CORP makes one impossible against this host; see `ping`.
  */
 import { useCallback, useState, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FxBox, FxPressableOpacity, FxSheet, FxSpinner, FxText, type ColorToken, type FxSheetMethods } from '@functionland/fx-ui';
 import { useBloxsStore } from '@/stores/useBloxsStore';
-import { probeNoCors } from '@/platform/lanHttp';
 import { FXPoolsURL } from '@/utils/constants';
 
 export type PingStatus = 'idle' | 'pinging' | 'connected' | 'disconnected' | 'error';
@@ -23,7 +22,6 @@ export interface PingResult {
 
 export const PING_URL = `${FXPoolsURL}/ping`;
 export const PING_CLUSTER_URL = `${FXPoolsURL}/ping-cluster`;
-const REACH_TIMEOUT_MS = 10_000;
 const PING_TIMEOUT_MS = 60_000;
 
 async function postJson(url: string, body: unknown, timeoutMs: number): Promise<{ ok: boolean; data: unknown }> {
@@ -48,14 +46,22 @@ async function postJson(url: string, body: unknown, timeoutMs: number): Promise<
   }
 }
 
+/**
+ * There is no reachability pre-check any more.
+ *
+ * It was a `no-cors` GET of the pools root, on the theory that an opaque response proves the host answered.
+ * Against this host that can never succeed: pools.fx.land sends `Cross-Origin-Resource-Policy: same-origin`
+ * (helmet's default), and CORP is precisely the rule that forbids opaque cross-origin reads — the browser
+ * blocks the response as ERR_BLOCKED_BY_RESPONSE.NotSameOrigin whatever the status is, and `/health` (200) is
+ * refused just as firmly as `/` (401). So the probe answered "cannot reach pools" every time, about a host
+ * that was up, and the real ping never ran.
+ *
+ * The POST speaks for itself: it either answers or `fetch` rejects. Asking first added a failure mode and no
+ * information.
+ */
 async function ping(url: string, peerId: string): Promise<PingResult> {
-  // Step 1: pools.fx.land reachable at all? Any answer (even 404) counts.
-  if ((await probeNoCors(FXPoolsURL, REACH_TIMEOUT_MS)) !== 'reachable') {
-    return { status: 'error', message: 'main.blox.connection.cannotReachPools', messageIsKey: true };
-  }
-  // Step 2: the ping itself.
   try {
-    const { data } = await postJson(url, { peerId }, PING_TIMEOUT_MS);
+    const { ok, data } = await postJson(url, { peerId }, PING_TIMEOUT_MS);
     const d = (data ?? {}) as { status?: string; msg?: string; success?: boolean; latency?: number };
     if (d.status === 'err') {
       return d.msg
@@ -63,8 +69,19 @@ async function ping(url: string, peerId: string): Promise<PingResult> {
         : { status: 'error', message: 'main.blox.connection.rateLimited', messageIsKey: true };
     }
     if (d.success === true) return { status: 'connected', message: `${d.latency ?? '?'}ms` };
+    // An HTTP error with nothing parseable in it says nothing about the Blox — do not report it as "the Blox
+    // is unreachable", which is a claim about the device rather than about the request.
+    if (!ok && data === null) {
+      return { status: 'error', message: 'main.blox.connection.pingFailed', messageIsKey: true };
+    }
     return { status: 'disconnected', message: 'main.blox.connection.notReachable', messageIsKey: true };
   } catch (err) {
+    // `fetch` rejects with TypeError both for a network failure and for a cross-origin request the browser
+    // refused; it deliberately does not say which. Either way the pool service was not reached, and the raw
+    // "Failed to fetch" tells the user nothing.
+    if (err instanceof TypeError) {
+      return { status: 'error', message: 'main.blox.connection.cannotReachPools', messageIsKey: true };
+    }
     const message = err instanceof Error && err.message ? err.message : undefined;
     return message
       ? { status: 'error', message }
