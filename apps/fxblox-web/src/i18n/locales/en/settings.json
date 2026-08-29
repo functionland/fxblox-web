@@ -417,7 +417,8 @@
         "notPersisted": "This browser has not granted persistent storage. Your identity, linked wallet and Blox list could be evicted under storage pressure — you can set up again with the same password and wallet.",
         "unknown": "Persistent storage status could not be determined in this browser.",
         "enable": "Keep my data on this device",
-        "declined": "The browser did not grant it this time. Chrome decides this from how much you use the site rather than by asking, so installing this app or bookmarking it and trying again usually works."
+        "declined": "Chrome decides this itself, from how much you use the site — it never asks, and it said no this time. Installing the app is what changes its mind.",
+        "install": "Install the app"
       }
     },
     "bloxLogs": {
