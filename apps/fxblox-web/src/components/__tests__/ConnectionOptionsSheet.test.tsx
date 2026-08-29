@@ -2,13 +2,6 @@ import { useRef } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const probeNoCorsMock = vi.hoisted(() =>
-  vi.fn<() => Promise<'reachable' | 'unreachable' | 'timeout'>>(async () => 'reachable'),
-);
-vi.mock('@/platform/lanHttp', async (orig) => ({
-  ...(await orig<typeof import('@/platform/lanHttp')>()),
-  probeNoCors: probeNoCorsMock,
-}));
 
 import { TestProviders } from '@/test/helpers/renderWithProviders';
 import { ConnectionOptionsSheet, PING_URL, PING_CLUSTER_URL, pingPeerId } from '@/components/ConnectionOptionsSheet';
@@ -33,7 +26,6 @@ describe('ConnectionOptionsSheet', () => {
   beforeEach(() => {
     resetStores();
     setPairedStores();
-    probeNoCorsMock.mockResolvedValue('reachable');
   });
   afterEach(() => {
     globalThis.fetch = originalFetch;
@@ -73,12 +65,17 @@ describe('ConnectionOptionsSheet', () => {
   });
 
   it('reports an unreachable pools.fx.land and rate limiting', async () => {
-    probeNoCorsMock.mockResolvedValueOnce('unreachable');
-    expect(await pingPeerId('p')).toEqual({ status: 'error', message: 'main.blox.connection.cannotReachPools', messageIsKey: true });
-
     globalThis.fetch = (async () => new Response(JSON.stringify({ status: 'err', msg: 'Too many requests' }), { status: 429 })) as typeof fetch;
     expect(await pingPeerId('p')).toEqual({ status: 'error', message: 'Too many requests' });
 
+    // An HTTP error carrying nothing parseable says nothing about the Blox, so it must not be reported as
+    // "the Blox is unreachable" — that is a claim about the device rather than about the request.
+    globalThis.fetch = (async () => new Response('<html>502</html>', { status: 502 })) as typeof fetch;
+    expect(await pingPeerId('p')).toEqual({ status: 'error', message: 'main.blox.connection.pingFailed', messageIsKey: true });
+
+    // `fetch` rejects with TypeError both for a network failure and for a cross-origin request the browser
+    // refused — pools.fx.land sends CORP `same-origin` and does not allow this origin, so this is the case a
+    // real user hits. "Failed to fetch" told them nothing; name the host that was not reached.
     globalThis.fetch = (async () => {
       throw new TypeError('Failed to fetch');
     }) as typeof fetch;
@@ -90,6 +87,8 @@ describe('ConnectionOptionsSheet', () => {
     fireEvent.click(screen.getByTestId('open'));
     fireEvent.click(await screen.findByTestId('connection-option-ping-blox'));
     await waitFor(() => expect(screen.getByTestId('ping-blox-status')).toHaveAttribute('data-status', 'error'));
-    expect(screen.getByTestId('ping-blox-status')).toHaveTextContent('Error (Failed to fetch)');
+    expect(screen.getByTestId('ping-blox-status')).toHaveTextContent(
+      'Error (Cannot reach pools.fx.land)',
+    );
   });
 });
