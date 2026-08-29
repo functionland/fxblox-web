@@ -16,12 +16,6 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 // is what would move the app to its own domain at base '/'.
 const base = process.env.VITE_BASE ?? '/';
 
-// Cloud / RPC / WalletConnect hosts the service worker must never cache (NetworkOnly). LAN / hotspot targets
-// (`http://<private-ip>:3500|8083`) deliberately have NO runtime route at all: an unmatched request falls through
-// to the browser natively, which keeps Chrome's Local Network Access permission semantics intact.
-const NETWORK_ONLY_HOSTS =
-  /(^|\.)(fula\.network|fx\.land|walletconnect\.(com|org)|web3modal\.org|reown\.com|skalenodes\.com|publicnode\.com|1rpc\.io|base\.org|githubusercontent\.com|delegated-ipfs\.dev|google\.com)$/;
-
 /**
  * Chunking policy (plan: vendor-react / ethers / appkit / libp2p / crypto, with the heavy ones lazy).
  *
@@ -151,7 +145,17 @@ export default defineConfig({
         clientsClaim: false,
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.protocol === 'https:' && NETWORK_ONLY_HOSTS.test(url.hostname),
+            // The regex is INLINE on purpose. Workbox serialises this callback into sw.js by stringifying
+            // it, and a stringified function loses its closure — referring to the NETWORK_ONLY_HOSTS
+            // constant defined above produced `ReferenceError: NETWORK_ONLY_HOSTS is not defined` inside
+            // the worker, thrown from Workbox's route matcher. Every request the router examined threw, on
+            // every load, and the NetworkOnly rule this route exists for never applied.
+            // Keep this callback self-contained: anything it references must live inside it.
+            urlPattern: ({ url }: { url: URL }) =>
+              url.protocol === 'https:' &&
+              /(^|\.)(fula\.network|fx\.land|walletconnect\.(com|org)|web3modal\.org|reown\.com|skalenodes\.com|publicnode\.com|1rpc\.io|base\.org|githubusercontent\.com|delegated-ipfs\.dev|google\.com)$/.test(
+                url.hostname,
+              ),
             handler: 'NetworkOnly',
           },
         ],
