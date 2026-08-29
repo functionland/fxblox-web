@@ -136,6 +136,30 @@ describe('SetBloxAuthorizer', () => {
     expect(useBloxsStore.getState().bloxs[TEST_BLOX_PEER_ID]?.name).toBe('Blox Unit #1');
   });
 
+  it('manual path with ?peerId: pre-filled and ready, and it never contacts the Blox', async () => {
+    const { router } = await renderSetupAt(
+      `/setup/set-authorizer?manual=1&peerId=${TEST_BLOX_PEER_ID}`,
+    );
+    const field = await screen.findByTestId('manual-blox-peer-id');
+    expect(field).toHaveValue(TEST_BLOX_PEER_ID);
+    // Adding a Blox you already own is a local record plus a libp2p connection. Nothing is read from the
+    // device and nothing is written to it — `peer/exchange` would re-claim it.
+    expect(api.getBloxProperties).not.toHaveBeenCalled();
+    expect(api.getBloxPropertiesAtIp).not.toHaveBeenCalled();
+    expect(api.exchangeConfig).not.toHaveBeenCalled();
+    expect(api.exchangeConfigAtIp).not.toHaveBeenCalled();
+
+    const next = await screen.findByTestId('setup-continue');
+    await waitFor(() => expect(next).toBeEnabled());
+    await userEvent.click(next);
+    await waitFor(() =>
+      expect(router.state.location.pathname + router.state.location.search).toBe(
+        '/setup/complete?manual=1',
+      ),
+    );
+    expect(useBloxsStore.getState().bloxs[TEST_BLOX_PEER_ID]).toBeTruthy();
+  });
+
   it('an invalid peer id from the exchange toasts and deletes the fula config', async () => {
     m(api.getBloxProperties).mockResolvedValue(goodProps());
     m(api.exchangeConfig).mockResolvedValue({ data: { peer_id: 'short' } });

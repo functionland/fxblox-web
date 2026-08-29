@@ -18,6 +18,7 @@ import {
   FxButton,
   FxCard,
   FxExclamationIcon,
+  FxHorizontalRule,
   FxIconButton,
   FxInfoIcon,
   FxRadioButton,
@@ -43,6 +44,7 @@ import { hostOf } from '@/platform/lanHttp';
 import { findBox } from '@/services/discoveryClient';
 import { useBloxsStore } from '@/stores/useBloxsStore';
 import { useUserProfileStore } from '@/stores/useUserProfileStore';
+import { normalizeBloxPeerId } from '@/utils/bloxPeerId';
 import { generateUniqueBloxName } from '@/utils/bloxName';
 import * as Helper from '@/utils/helper';
 import { ipIsPrivateLan } from '@/utils/ipIsPrivateLan';
@@ -135,6 +137,7 @@ export default function ConnectToExistingBlox() {
   const [checkboxState, setCheckboxState] = useState<Record<string, boolean>>({});
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualIp, setManualIp] = useState('');
+  const [manualPeerId, setManualPeerId] = useState('');
 
   const appPeerId = useUserProfileStore((state) => state.appPeerId);
   const setAppPeerId = useUserProfileStore((state) => state.setAppPeerId);
@@ -227,20 +230,32 @@ export default function ConnectToExistingBlox() {
       return;
     }
     try {
-      const response = (await runBleCommand(
-        'properties',
-        session.id,
-      )) as Partial<TBloxProperty> | null;
+      // Kept as `unknown`: narrowing it to the happy-path type up front is what made the failure branch
+      // unable to describe what actually came back.
+      const response: unknown = await runBleCommand('properties', session.id);
       if (response && typeof response === 'object') {
         addDevice(
-          deviceFromProperties(response, { source: 'ble', host: session.name ?? 'bluetooth' }),
+          deviceFromProperties(response as Partial<TBloxProperty>, {
+            source: 'ble',
+            host: session.name ?? 'bluetooth',
+          }),
         );
       } else {
-        throw new Error('empty properties response');
+        // Say what came back. "empty properties response" was reported for anything that was not an object,
+        // including a perfectly non-empty string, which told nobody anything.
+        throw new Error(
+          `the Blox answered with ${typeof response}${
+            typeof response === 'string' ? `: ${response.slice(0, 120)}` : ''
+          }, not its properties`,
+        );
       }
     } catch (error) {
       logger.logError('ConnectToExistingBloxScreen:scanBle', error);
-      queueToast({ type: 'error', message: t('setup.connectToExistingBlox.bleScanFailed') });
+      queueToast({
+        type: 'error',
+        title: t('setup.connectToExistingBlox.bleScanFailed'),
+        message: errorMessage(error),
+      });
     }
   };
 
@@ -328,6 +343,8 @@ export default function ConnectToExistingBlox() {
 
   const selectedIds = Object.keys(checkboxState);
   const manualIpValid = ipIsPrivateLan(manualIp.trim());
+  /** The normalised id, or null — doubles as the validity flag and as what gets sent on. */
+  const manualPeerIdValid = normalizeBloxPeerId(manualPeerId);
 
   const renderItem = (item: DiscoveredBlox) => {
     const bloxPeerId = item.txt?.bloxPeerIdString;
@@ -461,20 +478,19 @@ export default function ConnectToExistingBlox() {
     >
       <FxBox gap="12">
         <FxBox flexDirection="row" gap="12">
-          <FxButton
-            flex={1}
-            loading={scanning}
-            disabled={bleConnecting}
-            onPress={() => void scanLan()}
-            testID="scan-lan"
-          >
+          {/*
+            The two scans are independent — one talks to the network, the other opens Chrome's device
+            chooser — so neither blocks the other. They used to, which meant the Bluetooth button sat
+            disabled for the ~15 s the network scan takes, on a screen whose network scan cannot find an
+            already-owned Blox in the first place. The button the user needs was the one they had to wait for.
+          */}
+          <FxButton flex={1} loading={scanning} onPress={() => void scanLan()} testID="scan-lan">
             {t('setup.connectToExistingBlox.scan')}
           </FxButton>
           <FxButton
             flex={1}
             variant="inverted"
             loading={bleConnecting}
-            disabled={scanning}
             onPress={() => void scanBle()}
             testID="scan-ble"
           >
@@ -522,8 +538,55 @@ export default function ConnectToExistingBlox() {
               </FxButton>
             ) : (
               <FxCard>
-                <FxText variant="bodyMediumRegular" marginBottom="8">
+                {/*
+                  Two different situations, and the IP field only serves one of them. A Blox that is already
+                  set up stops serving the setup API on the LAN the moment it has an owner, so there is no
+                  address to reach it at — what identifies it is its peer id, and management runs over the
+                  relay. That is the case for anyone moving over from the phone, so it comes first.
+                */}
+                <FxText variant="bodyMediumRegular" marginBottom="4">
+                  {t('setup.connectToExistingBlox.enterPeerId')}
+                </FxText>
+                <FxText variant="bodyXSRegular" color="content3" marginBottom="8">
+                  {t('setup.connectToExistingBlox.peerIdHint')}
+                </FxText>
+                <FxTextInput
+                  placeholder="12D3KooW…"
+                  value={manualPeerId}
+                  onChangeText={setManualPeerId}
+                  mono
+                  autoFocus
+                  errorMessage={
+                    manualPeerId.trim() && !manualPeerIdValid
+                      ? t('setup.connectToExistingBlox.invalidPeerId')
+                      : undefined
+                  }
+                  testID="manual-peer-id"
+                />
+                <FxBox marginTop="12" marginBottom="20">
+                  <FxButton
+                    disabled={!manualPeerIdValid || !appPeerId}
+                    onPress={() =>
+                      void navigate(
+                        paths.setup.setAuthorizer({
+                          manual: true,
+                          peerId: manualPeerIdValid ?? undefined,
+                        }),
+                      )
+                    }
+                    testID="manual-peer-id-add"
+                  >
+                    {t('setup.connectToExistingBlox.addThisBlox')}
+                  </FxButton>
+                </FxBox>
+
+                <FxHorizontalRule />
+
+                <FxText variant="bodyMediumRegular" marginTop="20" marginBottom="4">
                   {t('setup.connectToExistingBlox.enterIpAddress')}
+                </FxText>
+                <FxText variant="bodyXSRegular" color="content3" marginBottom="8">
+                  {t('setup.connectToExistingBlox.ipHint')}
                 </FxText>
                 <FxTextInput
                   placeholder="192.168.1.100"
@@ -546,6 +609,7 @@ export default function ConnectToExistingBlox() {
                     onPress={() => {
                       setShowManualEntry(false);
                       setManualIp('');
+                      setManualPeerId('');
                     }}
                   >
                     {t('setup.connectToExistingBlox.cancel')}
