@@ -14,6 +14,15 @@
  * deep-link work, and the pause between them also gives the session time to settle — a signature published a
  * few hundred milliseconds after `connected` flips is not reliably delivered.
  *
+ * ## The second tap does not switch apps by itself either
+ *
+ * WalletConnect deep-links to the wallet at the same moment it publishes the request, not after — the two run
+ * as concurrent arms of one `Promise.all`. On Android the app-switch then takes the network away from this page
+ * before the publish finishes, so the wallet comes to the front to collect a request that never left. That is
+ * the "MetaMask opens and hangs" report. `walletRedirect.ts` holds the redirect back; here we wait for
+ * `session_request_sent` — which means the engine has finished TRYING to publish, success or not — and hop
+ * then, carrying the request id the wallet needs to find the prompt.
+ *
  * `signChainCode()` stays byte-identical to mobile: the signature seeds the DID secret key, so a changed byte
  * means web and mobile derive different identities from the same password and wallet.
  */
@@ -25,6 +34,8 @@ import { useColorMode } from '@/stores/useSettingsStore';
 import { setAppKitTheme } from '@/wallet/appkit';
 import { signChainCode } from '@/wallet/signChainCode';
 import { connectedWalletLink } from '@/wallet/walletLink';
+import { captureAutoRedirect, onceSessionRequestSent, requestLinkFrom } from '@/wallet/walletRedirect';
+import { useRelayWake } from '@/wallet/relayWake';
 import { useWallet } from '@/wallet/useWallet';
 
 /**
@@ -72,6 +83,11 @@ export default function WalletSigner({
   const cancelledRef = useRef(false);
   const [phase, setPhase] = useState<SignerPhase>('idle');
   const [showNudge, setShowNudge] = useState(false);
+  // Set once the request is on the relay: the deep link that opens the wallet ON this request, rather than on
+  // its home screen. Mirrored into a ref for the stable tap handler below.
+  const [requestLink, setRequestLink] = useState<string | null>(null);
+  const requestLinkRef = useRef<string | null>(null);
+  requestLinkRef.current = requestLink;
   // Latest props / wallet state for the stable callbacks below (the mobile effects closed over stale state).
   const latest = useRef({ password, onLinkingChange, onPhaseChange, onSignature, onError, wallet });
   latest.current = { password, onLinkingChange, onPhaseChange, onSignature, onError, wallet };
@@ -79,6 +95,11 @@ export default function WalletSigner({
   useEffect(() => {
     setAppKitTheme(mode);
   }, [mode]);
+
+  // Coming back from the wallet lands on a socket Android killed while we were backgrounded. Reconnect it now
+  // rather than waiting out the library's backoff, which is the several seconds of "connecting" a user sees
+  // after they have already approved.
+  useRelayWake(wallet.provider);
 
   // The parent swaps the password field for a spinner while we are busy. `readyToSign` is NOT busy — the user
   // has to see the button to press it — so it deliberately does not count.
@@ -144,6 +165,32 @@ export default function WalletSigner({
     }
     cancelledRef.current = false;
     setPhase('signing');
+    setRequestLink(null);
+    // Hold WalletConnect's own app-switch back so it cannot cut the publish off mid-flight, then hop ourselves
+    // once the relay has acknowledged the request. Both are no-ops for an extension wallet, which never leaves
+    // the page. See walletRedirect.ts for what goes wrong without this.
+    const href = connectedWalletLink(w.provider);
+    const capture = captureAutoRedirect();
+    let settled = false;
+    const unsubscribe = onceSessionRequestSent(w.provider, (event) => {
+      const link = requestLinkFrom(capture, href, event);
+      if (!link) return;
+      setRequestLink(link);
+      // `session_request_sent` is not a success signal — the engine emits it even when the publish REJECTED
+      // (see onceSessionRequestSent). Hopping then would send the user to a wallet with nothing waiting for
+      // it, which is the hang this whole change exists to remove. The rejection is already queued by the time
+      // this listener runs, so yielding one macrotask is enough to see it. It costs nothing against Chrome's
+      // transient user activation, which is measured in seconds.
+      setTimeout(() => {
+        if (settled) return;
+        // Hop unless something already navigated. A captured URL means the library's redirect was held back
+        // and we are still here. Nothing captured AND nothing passed through means nobody navigated at all —
+        // no deep-link choice stored, or the publish announced itself first — which is still ours to do. The
+        // remaining case is a navigation in a shape we did not recognise: the wallet is already in front, and
+        // hopping again would bounce the user twice.
+        if (capture.captured() || !capture.sawOpen()) assign(link);
+      }, 0);
+    });
     try {
       if (!w.provider) throw new Error('Provider not available');
       const signature = await signChainCode(w.provider, w.account, pwd);
@@ -154,6 +201,10 @@ export default function WalletSigner({
       console.log(err);
       setPhase('idle');
       latest.current.onError(err);
+    } finally {
+      settled = true;
+      unsubscribe();
+      capture.release();
     }
   }, []);
 
@@ -165,12 +216,17 @@ export default function WalletSigner({
    * page behind the one still waiting for the signature.
    */
   const openWallet = useCallback(() => {
-    const link = connectedWalletLink(latest.current.wallet.provider);
+    const link = requestLinkRef.current ?? connectedWalletLink(latest.current.wallet.provider);
     if (link) assign(link);
   }, []);
 
   const busy = phase === 'connecting' || phase === 'signing';
-  const walletLink = phase === 'signing' ? connectedWalletLink(wallet.provider) : null;
+  // The request-scoped link once we have one, else the bare wallet scheme — which at least opens the app, and
+  // is all there is to offer before the request reaches the relay.
+  const walletLink = phase === 'signing' ? (requestLink ?? connectedWalletLink(wallet.provider)) : null;
+  // A request-scoped link means the hop was already attempted and may have been dropped, so the button belongs
+  // on screen immediately. Without one, it stays on the timer: a desktop extension needs no button at all.
+  const showOpenWallet = walletLink !== null && (requestLink !== null || showNudge);
 
   return (
     <FxBox flex={flex ?? 1} gap="8">
@@ -179,7 +235,7 @@ export default function WalletSigner({
           {t('setup.linkPassword.walletConnectedTapSign')}
         </FxText>
       )}
-      {showNudge && walletLink && (
+      {showOpenWallet && walletLink && (
         <FxButton size="large" onPress={openWallet} testID="open-wallet">
           {t('setup.linkPassword.openWalletToApprove')}
         </FxButton>

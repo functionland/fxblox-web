@@ -214,6 +214,133 @@ describe('LinkPassword', () => {
     await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xlate'));
   });
 
+  it('wallet path: the app-switch waits for the relay, and carries the request id', async () => {
+    // The bug this guards. WalletConnect deep-links to the wallet from a promise that RACES the publish, so on
+    // Android the app-switch takes the page's network away before the request is on the wire. The wallet then
+    // opens on a request that was never sent, and hangs. See wallet/walletRedirect.ts.
+    const user = userEvent.setup();
+    const realOpen = window.open;
+    const open = vi.fn(() => null);
+    window.open = open as unknown as Window['open'];
+    vi.mocked(linking.assign).mockClear();
+
+    const listeners = new Set<(payload: unknown) => void>();
+    let approve: (sig: string) => void = () => undefined;
+    wallet.state.account = '0xABC';
+    wallet.state.connected = true;
+    wallet.state.provider = {
+      request: vi.fn(() => {
+        // The library's two concurrent arms, in the order they really occur: the deep link goes first (it only
+        // reads storage), the publish completes after a network round-trip and only then announces itself.
+        window.open('metamask://wc?requestId=42&sessionTopic=topic-1', '_self', 'noreferrer noopener');
+        for (const fn of [...listeners])
+          fn({ topic: 'topic-1', request: {}, chainId: 'eip155:1', id: 42 });
+        return new Promise<string>((resolve) => (approve = resolve));
+      }),
+      session: { peer: { metadata: { redirect: { native: 'metamask://' } } } },
+      client: {
+        on: (_event: string, fn: (payload: unknown) => void) => listeners.add(fn),
+        off: (_event: string, fn: (payload: unknown) => void) => listeners.delete(fn),
+      },
+    } as never;
+
+    try {
+      await renderSetupAt('/setup/link-password');
+      await fillPasswordAndConsent(user);
+      await user.click(await screen.findByTestId('sign-with-wallet'));
+
+      // The library's redirect was swallowed, so the page stayed in front long enough to finish publishing.
+      expect(open).not.toHaveBeenCalled();
+      // We hop instead, once the relay has the request — and to the URL that opens THAT request, not to a bare
+      // `metamask://` that lands on the wallet's home screen with the prompt still buried.
+      await waitFor(() =>
+        expect(linking.assign).toHaveBeenCalledWith('metamask://wc?requestId=42&sessionTopic=topic-1'),
+      );
+      // Offered as a button straight away too (well inside WALLET_NUDGE_MS): a navigation Chrome dropped for
+      // lack of a live user gesture looks exactly like a wallet that hung.
+      expect(await screen.findByTestId('open-wallet')).toBeInTheDocument();
+
+      await act(async () => {
+        approve('0xlate');
+      });
+      await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xlate'));
+    } finally {
+      window.open = realOpen;
+    }
+  });
+
+  it('wallet path: hops by itself when the library never redirects at all', async () => {
+    // With no stored deep-link choice WalletConnect's redirect arm does nothing — the reporter's log showed
+    // exactly that (`deeplink choice: null`). Suppressing a redirect that was never going to happen would
+    // leave the user on a button nobody told them to press, so the hop has to be ours in this case too.
+    const user = userEvent.setup();
+    vi.mocked(linking.assign).mockClear();
+    const listeners = new Set<(payload: unknown) => void>();
+    let approve: (sig: string) => void = () => undefined;
+    wallet.state.account = '0xABC';
+    wallet.state.connected = true;
+    wallet.state.provider = {
+      request: vi.fn(() => {
+        // Note what is missing: no window.open. Nothing navigates unless we do.
+        for (const fn of [...listeners])
+          fn({ topic: 'topic-1', request: {}, chainId: 'eip155:1', id: 42 });
+        return new Promise<string>((resolve) => (approve = resolve));
+      }),
+      session: { peer: { metadata: { redirect: { native: 'metamask://' } } } },
+      client: {
+        on: (_event: string, fn: (payload: unknown) => void) => listeners.add(fn),
+        off: (_event: string, fn: (payload: unknown) => void) => listeners.delete(fn),
+      },
+    } as never;
+
+    await renderSetupAt('/setup/link-password');
+    await fillPasswordAndConsent(user);
+    await user.click(await screen.findByTestId('sign-with-wallet'));
+
+    // Reconstructed rather than captured, but the same URL the library would have built.
+    await waitFor(() =>
+      expect(linking.assign).toHaveBeenCalledWith('metamask://wc?requestId=42&sessionTopic=topic-1'),
+    );
+    await act(async () => {
+      approve('0xlate');
+    });
+    await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xlate'));
+  });
+
+  it('wallet path: a publish that failed does not send the user into the wallet', async () => {
+    // `session_request_sent` is not a success signal. The engine does `await sendRequest(...).catch(reject)`
+    // and then emits unconditionally, so a REJECTED publish announces itself just the same. Hopping on it
+    // blindly would drop the user into a wallet with nothing waiting for it — the exact hang being fixed here.
+    const user = userEvent.setup();
+    vi.mocked(linking.assign).mockClear();
+    const listeners = new Set<(payload: unknown) => void>();
+    wallet.state.account = '0xABC';
+    wallet.state.connected = true;
+    wallet.state.provider = {
+      request: vi.fn(async () => {
+        for (const fn of [...listeners])
+          fn({ topic: 'topic-1', request: {}, chainId: 'eip155:1', id: 42 });
+        throw new Error('Failed to publish payload, please try again');
+      }),
+      session: { peer: { metadata: { redirect: { native: 'metamask://' } } } },
+      client: {
+        on: (_event: string, fn: (payload: unknown) => void) => listeners.add(fn),
+        off: (_event: string, fn: (payload: unknown) => void) => listeners.delete(fn),
+      },
+    } as never;
+
+    await renderSetupAt('/setup/link-password');
+    await fillPasswordAndConsent(user);
+    await user.click(await screen.findByTestId('sign-with-wallet'));
+
+    expect(await screen.findByText('Unable to sign the wallet address!')).toBeInTheDocument();
+    // Past the macrotask the hop is deferred by, so "not yet" cannot masquerade as "never".
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(linking.assign).not.toHaveBeenCalled();
+  });
+
   it('wallet path: dismissing the chooser leaves Sign available, not a stuck Cancel', async () => {
     const user = userEvent.setup();
     await renderSetupAt('/setup/link-password');
