@@ -35,6 +35,7 @@ import { setAppKitTheme } from '@/wallet/appkit';
 import { signChainCode } from '@/wallet/signChainCode';
 import { connectedWalletLink } from '@/wallet/walletLink';
 import { captureAutoRedirect, onceSessionRequestSent, requestLinkFrom } from '@/wallet/walletRedirect';
+import { useRelayWake } from '@/wallet/relayWake';
 import { useWallet } from '@/wallet/useWallet';
 
 /**
@@ -94,6 +95,11 @@ export default function WalletSigner({
   useEffect(() => {
     setAppKitTheme(mode);
   }, [mode]);
+
+  // Coming back from the wallet lands on a socket Android killed while we were backgrounded. Reconnect it now
+  // rather than waiting out the library's backoff, which is the several seconds of "connecting" a user sees
+  // after they have already approved.
+  useRelayWake(wallet.provider);
 
   // The parent swaps the password field for a spinner while we are busy. `readyToSign` is NOT busy — the user
   // has to see the button to press it — so it deliberately does not count.
