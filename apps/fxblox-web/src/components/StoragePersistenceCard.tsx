@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FxBox, FxButton, FxText } from '@functionland/fx-ui';
+import { canInstall, onInstallAvailabilityChange, promptInstall } from '@/platform/installPrompt';
 import {
   readStoragePersistence,
   requestPersistentStorage,
@@ -35,6 +36,8 @@ export function StoragePersistenceCard({
   const [asking, setAsking] = useState(false);
   /** The browser can decline without showing anything, so say so rather than leaving the button looking inert. */
   const [declined, setDeclined] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [installable, setInstallable] = useState(canInstall);
 
   useEffect(() => {
     let alive = true;
@@ -46,6 +49,9 @@ export function StoragePersistenceCard({
     };
   }, []);
 
+  // The install prompt usually arrives after first paint, and is gone once used or once the app is installed.
+  useEffect(() => onInstallAvailabilityChange(() => setInstallable(canInstall())), []);
+
   const onEnable = useCallback(async () => {
     setAsking(true);
     setDeclined(false);
@@ -55,6 +61,20 @@ export function StoragePersistenceCard({
       setDeclined(next === 'notPersisted');
     } finally {
       setAsking(false);
+    }
+  }, []);
+
+  /** Installing is what changes Chrome's mind, so re-ask straight afterwards rather than making them press again. */
+  const onInstall = useCallback(async () => {
+    setInstalling(true);
+    try {
+      const accepted = await promptInstall();
+      if (!accepted) return;
+      const next = await requestPersistentStorage();
+      setState(next);
+      setDeclined(next === 'notPersisted');
+    } finally {
+      setInstalling(false);
     }
   }, []);
 
@@ -89,6 +109,23 @@ export function StoragePersistenceCard({
             <FxText variant="bodyXSRegular" color="content3" testID="storage-persist-declined">
               {t('settings.about.storage.declined')}
             </FxText>
+          )}
+          {/*
+            Chrome refuses `persist()` on its own engagement heuristics and never prompts, so "ask again"
+            is not a route out — the previous copy could only tell the user to go and install the app
+            themselves, which is advice rather than an action. Installing is what actually flips the
+            decision, and Chrome will run that dialog for us, so offer it here.
+          */}
+          {declined && installable && (
+            <FxButton
+              size="small"
+              variant="inverted"
+              loading={installing}
+              onPress={() => void onInstall()}
+              testID="storage-persist-install"
+            >
+              {t('settings.about.storage.install')}
+            </FxButton>
           )}
         </FxBox>
       )}
