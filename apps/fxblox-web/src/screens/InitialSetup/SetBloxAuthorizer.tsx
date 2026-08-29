@@ -50,6 +50,7 @@ import { isLanHttpError } from '@/platform/lanHttp';
 import { useBloxsStore } from '@/stores/useBloxsStore';
 import { useUserProfileStore } from '@/stores/useUserProfileStore';
 import { resolveAppPeerId } from '@/utils/appPeerId';
+import { normalizeBloxPeerId } from '@/utils/bloxPeerId';
 import { safeGetConnectedPeripherals } from '@/utils/ble';
 import { generateUniqueBloxName } from '@/utils/bloxName';
 import * as Helper from '@/utils/helper';
@@ -94,7 +95,14 @@ export default function SetBloxAuthorizer() {
   const setupBaseUrl = deviceIp ? apiUrlFor(deviceIp, devicePort) : API_URL;
 
   const [newPeerId, setNewPeerId] = useState<string | undefined>(undefined);
-  const [newBloxPeerId, setNewBloxPeerId] = useState<string | undefined>(undefined);
+  /**
+   * Seeded from `?peerId` in the initialiser, not an effect: the field is this state, so an effect that
+   * wrote to it would fight the user the moment they corrected a bad paste.
+   */
+  const [newBloxPeerId, setNewBloxPeerId] = useState<string | undefined>(() => {
+    const fromRoute = search.get('peerId');
+    return fromRoute ? (normalizeBloxPeerId(fromRoute) ?? undefined) : undefined;
+  });
   const [showSkipButton, setShowSkipButton] = useState(false);
   const [showFormatDiskButton, setShowFormatDiskButton] = useState(false);
   const [showSkipModal, setShowSkipModal] = useState(false);

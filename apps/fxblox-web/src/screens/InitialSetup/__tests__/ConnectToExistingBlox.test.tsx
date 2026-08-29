@@ -171,6 +171,33 @@ describe('ConnectToExistingBlox', () => {
     );
   });
 
+  it('manual card: a pasted Blox peer id adds the Blox without trying to claim it', async () => {
+    // The route for someone moving over from the phone. Their Blox already has an owner, so it no longer
+    // answers on the LAN at all — the peer id is what identifies it, and management runs over the relay.
+    propsMock.mockRejectedValue(new Error('unreachable'));
+    const { router } = await renderSetupAt('/setup/connect-existing');
+    expect(await screen.findByTestId('no-devices')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('add-manually'));
+
+    const field = screen.getByTestId('manual-peer-id');
+    await userEvent.type(field, 'not-a-peer-id');
+    expect(screen.getByTestId('manual-peer-id-add')).toBeDisabled();
+    await userEvent.clear(field);
+    // Pasted straight out of a circuit multiaddr — the LAST /p2p/ component is the Blox, not the relay.
+    await userEvent.type(
+      field,
+      `/dns/relay.dev.fx.land/tcp/4001/p2p/${TEST_APP_PEER_ID}/p2p-circuit/p2p/${TEST_BLOX_PEER_ID}`,
+    );
+    await userEvent.click(screen.getByTestId('manual-peer-id-add'));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/setup/set-authorizer'));
+    const q = new URLSearchParams(router.state.location.search);
+    expect(q.get('manual')).toBe('1');
+    expect(q.get('peerId')).toBe(TEST_BLOX_PEER_ID);
+    // The claim flow is what `?ip` selects. This path must not go near it.
+    expect(q.get('ip')).toBeNull();
+  });
+
   it('generates the app peer id when missing, and "Scan via Bluetooth" lists the device read over BLE', async () => {
     resetStores({ identity: true, appPeerId: null });
     initFulaMock.mockResolvedValue(TEST_APP_PEER_ID);

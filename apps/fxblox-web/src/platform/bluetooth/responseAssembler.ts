@@ -42,6 +42,20 @@ export interface BleStreamResult {
  * Thrown when a stream times out before its `final: true` frame. Carries the frames that DID arrive so the chat
  * UX can render a partial transcript.
  */
+/**
+ * A frame that looked like JSON and was not. Carries the raw text so a caller can report the length, which
+ * is the tell for truncation.
+ */
+export class BleFrameError extends Error {
+  public readonly raw: string;
+  constructor(message: string, raw: string) {
+    super(message);
+    this.name = 'BleFrameError';
+    this.raw = raw;
+    Object.setPrototypeOf(this, BleFrameError.prototype);
+  }
+}
+
 export class BleStreamTimeoutError extends Error {
   public readonly partialFrames: unknown[];
   constructor(message: string, partialFrames: unknown[]) {
@@ -206,6 +220,24 @@ export class ResponseAssembler implements BleCommandWriter {
           console.warn('Dropping an unparseable frame received mid-assembly:', value.slice(0, 80));
           return null;
         }
+        // A frame that STARTS like JSON but does not parse is a damaged one — almost always cut short,
+        // because a notification can only carry ATT_MTU-3 bytes and Web Bluetooth gives us no way to ask
+        // for a bigger MTU the way the mobile app does with requestMTU(512). Handing the fragment back as
+        // the answer is how a truncated `properties` reply surfaced as the useless "empty properties
+        // response": say what actually happened instead, and say it now rather than after the timeout.
+        const head = value.trimStart()[0];
+        if (head === '{' || head === '[') {
+          const err = new BleFrameError(
+            `The Blox's reply arrived damaged — ${value.length} bytes that do not parse as JSON. ` +
+              `It was most likely cut short in transit.`,
+            value,
+          );
+          console.error(err.message, value.slice(0, 120));
+          this.commandReject?.(err);
+          this.cleanupCommand();
+          return null;
+        }
+        // Genuinely not JSON: plenty of commands answer with a bare string ("Wifi connected!").
         console.log('Received non-JSON response:', value);
         return value;
       }

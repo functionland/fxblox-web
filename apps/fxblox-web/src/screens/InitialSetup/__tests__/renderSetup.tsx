@@ -57,10 +57,16 @@ export async function renderSetupAt(path: string, extraRoutes: RouteObject[] = [
   return { router, ...utils };
 }
 
-/** libp2p peer ids are 52 chars (`12D3KooW` + 44 base58 chars) — SetBloxAuthorizer checks the length. */
+/**
+ * libp2p peer ids are 52 chars (`12D3KooW` + 44 base58 chars) — SetBloxAuthorizer checks the length.
+ *
+ * The capital L in "BLox"/"CLuster" is not a typo: base58btc omits the four characters that look like each
+ * other — `0`, `O`, `I` and lowercase `l` — so a fixture spelled "Blox" is not a peer id any real encoder
+ * could produce, and anything that validates the alphabet rejects it.
+ */
 export const TEST_APP_PEER_ID = '12D3KooWAppPeer'.padEnd(52, 'A');
-export const TEST_BLOX_PEER_ID = '12D3KooWBloxPeer'.padEnd(52, 'B');
-export const TEST_CLUSTER_PEER_ID = '12D3KooWCluster'.padEnd(52, 'C');
+export const TEST_BLOX_PEER_ID = '12D3KooWBLoxPeer'.padEnd(52, 'B');
+export const TEST_CLUSTER_PEER_ID = '12D3KooWCLuster'.padEnd(52, 'C');
 
 /** Fresh store state (the stores are module singletons shared by every test in a file). */
 export function resetStores(opts: { identity?: boolean; appPeerId?: string | null } = {}) {
