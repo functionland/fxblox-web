@@ -30,6 +30,18 @@ function relayerFrom(provider: unknown): RelayerLike | null {
 }
 
 /**
+ * Is the relay socket actually open right now?
+ *
+ * `null` when there is no relay to ask — an injected/extension wallet, which needs no socket. Callers use this
+ * to avoid sending someone into a wallet that has no way to collect what was sent: with the socket down, the
+ * request is not on the relay, so the wallet opens onto nothing.
+ */
+export function isRelayConnected(provider: unknown): boolean | null {
+  const relayer = relayerFrom(provider);
+  return relayer ? relayer.connected === true : null;
+}
+
+/**
  * Reconnect the relay socket if it is down. No-op when it is already up, already dialling, or when this is not
  * a WalletConnect-backed provider at all (an extension wallet has no relay).
  */

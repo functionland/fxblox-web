@@ -64,6 +64,7 @@
       "signaturePortalHint": "Sign at fxblox.fx.land, then paste the signature below together with the wallet address you signed with.",
       "walletConnectedTapSign": "Wallet connected. Tap below to approve the signature — this opens your wallet again.",
       "approveInWallet": "Approve the request in your wallet…",
+      "walletStuckHint": "Wallet opened but stuck on its splash screen? Close it completely from your recent apps, then tap Open wallet to approve again — your request is still waiting.",
       "openWalletToApprove": "Open wallet to approve"
     },
     "connectToBlox": {
