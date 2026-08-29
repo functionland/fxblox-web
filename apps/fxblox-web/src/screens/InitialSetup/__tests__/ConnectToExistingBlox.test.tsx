@@ -19,6 +19,10 @@ vi.mock('@/utils/helper', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/utils/helper')>();
   return { ...actual, initFula: vi.fn() };
 });
+vi.mock('@/services/lanDiscovery', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/lanDiscovery')>();
+  return { ...actual, discoverBloxesOnLan: vi.fn(async () => []) };
+});
 vi.mock('@/platform/bluetooth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/bluetooth')>();
   ble.state ??= createBleMockState();
@@ -27,6 +31,7 @@ vi.mock('@/platform/bluetooth', async (importOriginal) => {
 
 import { API_URL } from '@/api';
 import { getBloxPropertiesAtIp } from '@/api/bloxHardware';
+import { discoverBloxesOnLan } from '@/services/lanDiscovery';
 import { peekDeepLinkStash, stashDeepLink } from '@/app/deepLinkStash';
 import { BleRegistry } from '@/platform/bluetooth';
 import { hostOf } from '@/platform/lanHttp';
@@ -43,6 +48,7 @@ import {
 
 const propsMock = getBloxPropertiesAtIp as unknown as ReturnType<typeof vi.fn>;
 const initFulaMock = Helper.initFula as unknown as ReturnType<typeof vi.fn>;
+const discoverMock = discoverBloxesOnLan as unknown as ReturnType<typeof vi.fn>;
 const AP_HOST = hostOf(API_URL);
 
 function bloxProps(authorizer: string, hardwareID = 'hw-1') {
@@ -72,9 +78,49 @@ describe('ConnectToExistingBlox', () => {
     resetStores({ identity: true, appPeerId: TEST_APP_PEER_ID });
     propsMock.mockReset();
     initFulaMock.mockReset();
+    discoverMock.mockReset();
+    discoverMock.mockResolvedValue([]);
     lanIpCache.clear();
     resetBleMockState(ble.state!);
     BleRegistry._resetForTests();
+  });
+
+  it('offers a Blox found by its .local name, routing on the peer id alone', async () => {
+    // The candidates the `/properties` scan probes are all derived from Bloxs the app ALREADY knows, so on a
+    // fresh install it can only come back empty. The name probe is what finds a device never seen before; all
+    // it can learn is the peer id, which is exactly what the manual-entry route takes.
+    propsMock.mockRejectedValue(new Error('nothing on the hotspot'));
+    discoverMock.mockResolvedValue([{ host: 'fxblox-rk1.local', peerId: TEST_BLOX_PEER_ID }]);
+    const { router } = await renderAndScan();
+
+    expect(await screen.findByTestId(`lan-found-${TEST_BLOX_PEER_ID}`)).toHaveTextContent(
+      'fxblox-rk1.local',
+    );
+    expect(screen.queryByTestId('no-devices')).toBeNull();
+
+    await userEvent.click(screen.getByTestId(`lan-found-add-${TEST_BLOX_PEER_ID}`));
+    await waitFor(() =>
+      expect(router.state.location.pathname + router.state.location.search).toBe(
+        `/setup/set-authorizer?manual=1&peerId=${TEST_BLOX_PEER_ID}`,
+      ),
+    );
+  });
+
+  it('marks a Blox it already has instead of claiming nothing answered', async () => {
+    // The bug this pins, caught testing the deployed build against real hardware: results were filtered to
+    // Bloxs the app lacked, so finding your only Blox — already added — rendered "Nothing answered on this
+    // network". It had answered, in 3 seconds.
+    propsMock.mockRejectedValue(new Error('nothing on the hotspot'));
+    discoverMock.mockResolvedValue([{ host: 'fxblox-rk1.local', peerId: TEST_BLOX_PEER_ID }]);
+    useBloxsStore.setState({
+      bloxs: { [TEST_BLOX_PEER_ID]: { peerId: TEST_BLOX_PEER_ID, name: 'Blox Unit #1' } },
+    });
+    await renderAndScan();
+
+    expect(await screen.findByTestId(`lan-found-known-${TEST_BLOX_PEER_ID}`)).toBeInTheDocument();
+    expect(screen.queryByTestId('no-devices')).toBeNull();
+    // Nothing to add, so no button that would take them round the setup loop again.
+    expect(screen.queryByTestId(`lan-found-add-${TEST_BLOX_PEER_ID}`)).toBeNull();
   });
 
   it('scans the hotspot host, lists an authorized Blox and "Add selected" adds it and goes home', async () => {
