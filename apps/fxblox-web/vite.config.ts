@@ -126,10 +126,18 @@ export default defineConfig({
         display: 'standalone',
         start_url: base,
         scope: base,
+        // Only the SVG, because only the SVG exists. The two PNGs were declared but never added to
+        // `public/icons/`, so both 404'd in production and Chrome reported "Error while trying to use the
+        // following icon from the Manifest" and refused the install banner — the one feature these entries
+        // were there to enable. An SVG with `sizes: "any"` satisfies Chrome's installability requirement.
+        //
+        // `maskable` is a second entry rather than `purpose: 'any maskable'`: a single icon claiming both is
+        // used as-is AND masked, and an icon that suits one rarely suits the other. This artwork is
+        // full-bleed with its content inside the safe zone (194px from centre against a 205px limit), so it
+        // is honest in both roles. If a PNG set is ever added, generate it from this file.
         icons: [
           { src: 'icons/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: 'icons/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
         ],
       },
       workbox: {
