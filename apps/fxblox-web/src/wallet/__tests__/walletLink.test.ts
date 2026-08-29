@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { connectedWalletLink } from '../walletLink';
+import { connectedWalletLink, walletRequestLink } from '../walletLink';
 
 const withRedirect = (redirect: unknown) => ({ session: { peer: { metadata: { redirect } } } });
 
@@ -30,5 +30,34 @@ describe('connectedWalletLink', () => {
     expect(connectedWalletLink({ request: () => undefined })).toBeNull();
     expect(connectedWalletLink(withRedirect(undefined))).toBeNull();
     expect(connectedWalletLink(withRedirect({ native: 42 }))).toBeNull();
+  });
+});
+
+describe('walletRequestLink', () => {
+  it('carries the request id, which is what makes the wallet show the prompt', () => {
+    expect(walletRequestLink('metamask://', 42, 'abc123')).toBe(
+      'metamask://wc?requestId=42&sessionTopic=abc123',
+    );
+  });
+
+  it('strips exactly one trailing slash, so the scheme keeps its own', () => {
+    // "metamask://" must become "metamask://wc?…", not "metamask:///wc?…".
+    expect(walletRequestLink('metamask://', 1, 't')).toContain('metamask://wc?');
+    expect(walletRequestLink('https://metamask.app.link/', 1, 't')).toBe(
+      'https://metamask.app.link/wc?requestId=1&sessionTopic=t',
+    );
+    expect(walletRequestLink('https://metamask.app.link', 1, 't')).toBe(
+      'https://metamask.app.link/wc?requestId=1&sessionTopic=t',
+    );
+  });
+
+  it('accepts a string id, since the wire format is a JSON-RPC id', () => {
+    expect(walletRequestLink('metamask://', '1756166400123', 't')).toBe(
+      'metamask://wc?requestId=1756166400123&sessionTopic=t',
+    );
+  });
+
+  it('declines the Telegram form rather than guessing at its startapp payload', () => {
+    expect(walletRequestLink('https://t.me/wallet', 1, 't')).toBeNull();
   });
 });
