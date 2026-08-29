@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Port of apps/box/src/screens/InitialSetup/ConnectToExistingBlox.screen.tsx ("Bloxs in your network").
  *
  * The browser has no mDNS, so "Scan" probes candidate addresses with `GET /properties` and maps the answers to
@@ -18,7 +18,6 @@ import {
   FxButton,
   FxCard,
   FxExclamationIcon,
-  FxHorizontalRule,
   FxIconButton,
   FxInfoIcon,
   FxRadioButton,
@@ -133,10 +132,11 @@ export default function ConnectToExistingBlox() {
 
   const [data, setData] = useState<DiscoveredBlox[]>([]);
   const [scanning, setScanning] = useState(false);
+  /** "Nothing found" is only true once something has looked. Nothing scans on arrival any more. */
+  const [hasScanned, setHasScanned] = useState(false);
   const [addingBloxs, setAddingBloxs] = useState(false);
   const [checkboxState, setCheckboxState] = useState<Record<string, boolean>>({});
   const [showManualEntry, setShowManualEntry] = useState(false);
-  const [manualIp, setManualIp] = useState('');
   const [manualPeerId, setManualPeerId] = useState('');
 
   const appPeerId = useUserProfileStore((state) => state.appPeerId);
@@ -209,7 +209,10 @@ export default function ConnectToExistingBlox() {
       console.log('[Scan] Error scanning:', error);
       logger.logError('ConnectToExistingBloxScreen:scan', error);
     } finally {
-      if (scanGeneration.current === generation) setScanning(false);
+      if (scanGeneration.current === generation) {
+        setScanning(false);
+        setHasScanned(true);
+      }
     }
   }, [bloxs, addDevice, logger]);
 
@@ -264,8 +267,14 @@ export default function ConnectToExistingBlox() {
     if (mountedScan.current) return;
     mountedScan.current = true;
     if (!appPeerId) void generateAppPeerId();
-    void scanLan();
-  }, [appPeerId, generateAppPeerId, scanLan]);
+    // The network scan is NOT fired on arrival any more. This screen exists to add a Blox you already own,
+    // and such a Blox answers nothing on the network — it stops serving the setup API the moment it has an
+    // owner. So the scan structurally cannot find the very thing this screen is for, yet it ran for ~15 s
+    // (the hotspot probe alone waits that long) before the user could do anything, and then said "make sure
+    // your Blox is powered on and connected to the same network" — advice that could not have helped.
+    // It stays available as an explicit button: it does find a Blox that has NOT been set up yet, and one
+    // reached over its own hotspot.
+  }, [appPeerId, generateAppPeerId]);
 
   const handleOnItemPress = (id: string) => {
     setCheckboxState((prev) => {
@@ -342,7 +351,6 @@ export default function ConnectToExistingBlox() {
   };
 
   const selectedIds = Object.keys(checkboxState);
-  const manualIpValid = ipIsPrivateLan(manualIp.trim());
   /** The normalised id, or null — doubles as the validity flag and as what gets sent on. */
   const manualPeerIdValid = normalizeBloxPeerId(manualPeerId);
 
@@ -484,17 +492,23 @@ export default function ConnectToExistingBlox() {
             disabled for the ~15 s the network scan takes, on a screen whose network scan cannot find an
             already-owned Blox in the first place. The button the user needs was the one they had to wait for.
           */}
-          <FxButton flex={1} loading={scanning} onPress={() => void scanLan()} testID="scan-lan">
-            {t('setup.connectToExistingBlox.scan')}
-          </FxButton>
+          {/* Bluetooth leads: it is the one route that actually reaches a Blox that already has an owner. */}
           <FxButton
             flex={1}
-            variant="inverted"
             loading={bleConnecting}
             onPress={() => void scanBle()}
             testID="scan-ble"
           >
             {t('setup.connectToExistingBlox.scanViaBluetooth')}
+          </FxButton>
+          <FxButton
+            flex={1}
+            variant="inverted"
+            loading={scanning}
+            onPress={() => void scanLan()}
+            testID="scan-lan"
+          >
+            {t('setup.connectToExistingBlox.scan')}
           </FxButton>
         </FxBox>
         <FxText variant="bodyXSRegular" color="content3">
@@ -508,7 +522,7 @@ export default function ConnectToExistingBlox() {
             </FxText>
           </FxBox>
         )}
-        {!scanning && data.length === 0 && (
+        {!scanning && hasScanned && data.length === 0 && (
           <FxText variant="bodySmallRegular" color="content2" testID="no-devices">
             {t('setup.connectToExistingBlox.noDevices')}
           </FxText>
@@ -539,10 +553,10 @@ export default function ConnectToExistingBlox() {
             ) : (
               <FxCard>
                 {/*
-                  Two different situations, and the IP field only serves one of them. A Blox that is already
-                  set up stops serving the setup API on the LAN the moment it has an owner, so there is no
-                  address to reach it at — what identifies it is its peer id, and management runs over the
-                  relay. That is the case for anyone moving over from the phone, so it comes first.
+                  Peer id only. This screen adds a Blox you ALREADY own, and such a Blox stops serving the
+                  setup API on the LAN the moment it has an owner — there is no address that reaches it, so
+                  asking for one here could only ever fail. Claiming a not-yet-set-up Blox by address is a
+                  different job and belongs to the LAN step in ConnectToBlox.
                 */}
                 <FxText variant="bodyMediumRegular" marginBottom="4">
                   {t('setup.connectToExistingBlox.enterPeerId')}
@@ -563,8 +577,19 @@ export default function ConnectToExistingBlox() {
                   }
                   testID="manual-peer-id"
                 />
-                <FxBox marginTop="12" marginBottom="20">
+                <FxBox flexDirection="row" marginTop="12" gap="8">
                   <FxButton
+                    flex={1}
+                    variant="inverted"
+                    onPress={() => {
+                      setShowManualEntry(false);
+                      setManualPeerId('');
+                    }}
+                  >
+                    {t('setup.connectToExistingBlox.cancel')}
+                  </FxButton>
+                  <FxButton
+                    flex={1}
                     disabled={!manualPeerIdValid || !appPeerId}
                     onPress={() =>
                       void navigate(
@@ -577,54 +602,6 @@ export default function ConnectToExistingBlox() {
                     testID="manual-peer-id-add"
                   >
                     {t('setup.connectToExistingBlox.addThisBlox')}
-                  </FxButton>
-                </FxBox>
-
-                <FxHorizontalRule />
-
-                <FxText variant="bodyMediumRegular" marginTop="20" marginBottom="4">
-                  {t('setup.connectToExistingBlox.enterIpAddress')}
-                </FxText>
-                <FxText variant="bodyXSRegular" color="content3" marginBottom="8">
-                  {t('setup.connectToExistingBlox.ipHint')}
-                </FxText>
-                <FxTextInput
-                  placeholder="192.168.1.100"
-                  value={manualIp}
-                  onChangeText={setManualIp}
-                  keyboardType="decimal-pad"
-                  mono
-                  autoFocus
-                  errorMessage={
-                    manualIp.trim() && !manualIpValid
-                      ? t('setup.connectToExistingBlox.invalidIp')
-                      : undefined
-                  }
-                  testID="manual-ip"
-                />
-                <FxBox flexDirection="row" marginTop="12" gap="8">
-                  <FxButton
-                    flex={1}
-                    variant="inverted"
-                    onPress={() => {
-                      setShowManualEntry(false);
-                      setManualIp('');
-                      setManualPeerId('');
-                    }}
-                  >
-                    {t('setup.connectToExistingBlox.cancel')}
-                  </FxButton>
-                  <FxButton
-                    flex={1}
-                    disabled={!manualIpValid || !appPeerId}
-                    onPress={() =>
-                      void navigate(
-                        paths.setup.setAuthorizer({ ip: manualIp.trim(), port: DEFAULT_WAP_PORT }),
-                      )
-                    }
-                    testID="manual-connect"
-                  >
-                    {t('setup.connectToExistingBlox.connect')}
                   </FxButton>
                 </FxBox>
               </FxCard>
