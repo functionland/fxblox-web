@@ -1,11 +1,22 @@
-﻿/**
+/**
  * Port of apps/box/src/screens/InitialSetup/ConnectToExistingBlox.screen.tsx ("Bloxs in your network").
  *
- * The browser has no mDNS, so "Scan" probes candidate addresses with `GET /properties` and maps the answers to
- * the mobile `MDNSBloxService` record shape (dedupe by hardwareID, feed `lanIpCache.noteRecord`): the FxBlox
- * hotspot host, every LAN-IP cache record, the manual IPs saved for known Bloxs, and the private `/ip4/` addrs
- * the discovery service (`findBox`) reports for known Bloxs. "Scan via Bluetooth" reads `properties` over a
- * BLE session picked from the click; the manual-IP card goes straight to SetBloxAuthorizer (LAN setup).
+ * "Scan" does two unrelated things at once.
+ *
+ * The first probes candidate addresses with `GET /properties` and maps the answers to the mobile
+ * `MDNSBloxService` record shape (dedupe by hardwareID, feed `lanIpCache.noteRecord`): the FxBlox hotspot host,
+ * every LAN-IP cache record, the manual IPs saved for known Bloxs, and the private `/ip4/` addrs the discovery
+ * service (`findBox`) reports for known Bloxs. Note what those have in common — every one is derived from a
+ * Blox the app ALREADY knows. On a fresh install this list is empty but for the hotspot, so the scan could only
+ * ever come back empty, which is precisely the state this screen exists to get out of.
+ *
+ * The second closes that circle: `services/lanDiscovery.ts` resolves the Blox's `.local` name and reads its
+ * peer id, finding a device the app has never seen. It cannot learn anything else — no authorizer, no hardware
+ * id, since those live in an mDNS TXT record no browser can read — so those results render in their own section
+ * and go down the same route as the manual peer-id field rather than pretending to be full device records.
+ *
+ * "Scan via Bluetooth" reads `properties` over a BLE session picked from the click; the manual-IP card goes
+ * straight to SetBloxAuthorizer (LAN setup).
  *
  * Device cards, the Authorized / Not Authorized / New Device tags, multi-select, "Setup" for unpaired devices,
  * the peer-id-mismatch help and `addBloxs` (re-keying by hardwareID / cluster id, unique names, first selected
@@ -41,6 +52,7 @@ import { useLogger } from '@/hooks/useLogger';
 import type { MDNSBloxService, TBloxProperty } from '@/models';
 import { hostOf } from '@/platform/lanHttp';
 import { findBox } from '@/services/discoveryClient';
+import { discoverBloxesOnLan, type LanBlox } from '@/services/lanDiscovery';
 import { useBloxsStore } from '@/stores/useBloxsStore';
 import { useUserProfileStore } from '@/stores/useUserProfileStore';
 import { normalizeBloxPeerId } from '@/utils/bloxPeerId';
@@ -132,6 +144,8 @@ export default function ConnectToExistingBlox() {
 
   const [data, setData] = useState<DiscoveredBlox[]>([]);
   const [scanning, setScanning] = useState(false);
+  /** Bloxes found by resolving a .local name — peer id only, so they render in their own section. */
+  const [lanFound, setLanFound] = useState<LanBlox[]>([]);
   /** "Nothing found" is only true once something has looked. Nothing scans on arrival any more. */
   const [hasScanned, setHasScanned] = useState(false);
   const [addingBloxs, setAddingBloxs] = useState(false);
@@ -190,11 +204,12 @@ export default function ConnectToExistingBlox() {
     console.log('[Scan] Starting LAN scan for Blox devices');
     setScanning(true);
     setData([]);
+    setLanFound([]);
     uniqueDevicesRef.current = new Map();
     try {
       const candidates = await collectScanCandidates(Object.keys(bloxs));
-      await Promise.all(
-        candidates.map(async ({ ip, port }) => {
+      await Promise.all([
+        ...candidates.map(async ({ ip, port }) => {
           try {
             const res = await getBloxPropertiesAtIp(ip, port);
             if (scanGeneration.current !== generation) return;
@@ -204,7 +219,20 @@ export default function ConnectToExistingBlox() {
             console.log(`[Scan] ${ip}:${port} did not answer`, error);
           }
         }),
-      );
+        // The candidates above are all derived from Bloxes the app ALREADY knows, so on a fresh install there
+        // is nothing to probe and the scan could only ever come back empty — which is what it did. This finds
+        // a Blox the app has never seen, by resolving its `.local` name. See services/lanDiscovery.ts.
+        (async () => {
+          try {
+            const found = await discoverBloxesOnLan();
+            if (scanGeneration.current !== generation) return;
+            console.log(`[Scan] mDNS name probe found ${found.length}`, found);
+            setLanFound(found.filter((blox) => !bloxs[blox.peerId]));
+          } catch (error) {
+            console.log('[Scan] mDNS name probe failed', error);
+          }
+        })(),
+      ]);
     } catch (error) {
       console.log('[Scan] Error scanning:', error);
       logger.logError('ConnectToExistingBloxScreen:scan', error);
@@ -522,7 +550,41 @@ export default function ConnectToExistingBlox() {
             </FxText>
           </FxBox>
         )}
-        {!scanning && hasScanned && data.length === 0 && (
+        {/*
+          Bloxes found by name on the local network. Kept separate from the `/properties` list on purpose: all
+          the LAN probe can learn is the peer id, so the Authorized / New tags and the multi-select those cards
+          carry would be guesses. The peer id is the whole of what "add an existing Blox" needs, so these go
+          straight down the same route the manual field uses.
+        */}
+        {lanFound.length > 0 && (
+          <FxBox gap="8" testID="lan-found">
+            <FxText variant="bodySmallSemibold" color="content1">
+              {t('setup.connectToExistingBlox.foundOnNetwork')}
+            </FxText>
+            {lanFound.map((blox) => (
+              <FxCard key={blox.peerId} padding="12" gap="8" testID={`lan-found-${blox.peerId}`}>
+                <FxText variant="bodySmallRegular" color="content1">
+                  {blox.host}
+                </FxText>
+                <PeerIdRow
+                  label={t('setup.connectToExistingBlox.bloxPeerId')}
+                  value={blox.peerId}
+                  testID={`lan-found-peer-${blox.peerId}`}
+                />
+                <FxButton
+                  disabled={!appPeerId}
+                  onPress={() =>
+                    void navigate(paths.setup.setAuthorizer({ manual: true, peerId: blox.peerId }))
+                  }
+                  testID={`lan-found-add-${blox.peerId}`}
+                >
+                  {t('setup.connectToExistingBlox.addThisBlox')}
+                </FxButton>
+              </FxCard>
+            ))}
+          </FxBox>
+        )}
+        {!scanning && hasScanned && data.length === 0 && lanFound.length === 0 && (
           <FxText variant="bodySmallRegular" color="content2" testID="no-devices">
             {t('setup.connectToExistingBlox.noDevices')}
           </FxText>
