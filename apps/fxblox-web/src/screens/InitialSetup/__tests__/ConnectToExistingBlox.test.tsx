@@ -57,6 +57,16 @@ function bloxProps(authorizer: string, hardwareID = 'hw-1') {
   };
 }
 
+/**
+ * Nothing scans on arrival any more: this screen adds a Blox you already own, and such a Blox answers
+ * nothing on the network. Tests that want discovered devices ask for the search explicitly, as a user does.
+ */
+async function renderAndScan() {
+  const rendered = await renderSetupAt('/setup/connect-existing');
+  await userEvent.click(await screen.findByTestId('scan-lan'));
+  return rendered;
+}
+
 describe('ConnectToExistingBlox', () => {
   beforeEach(() => {
     resetStores({ identity: true, appPeerId: TEST_APP_PEER_ID });
@@ -71,7 +81,7 @@ describe('ConnectToExistingBlox', () => {
     propsMock.mockImplementation(async (ip: string) =>
       ip === AP_HOST ? bloxProps(TEST_APP_PEER_ID) : Promise.reject(new Error('unreachable')),
     );
-    const { router } = await renderSetupAt('/setup/connect-existing');
+    const { router } = await renderAndScan();
     expect(await screen.findByTestId('blox-card-hw-1')).toBeInTheDocument();
     expect(screen.getByText('Authorized')).toBeInTheDocument();
     expect(screen.getByTestId('blox-peer-id-value')).toHaveTextContent(TEST_BLOX_PEER_ID);
@@ -107,7 +117,7 @@ describe('ConnectToExistingBlox', () => {
     propsMock.mockImplementation(async (ip: string) =>
       ip === AP_HOST ? bloxProps(TEST_APP_PEER_ID) : Promise.reject(new Error('unreachable')),
     );
-    const { router } = await renderSetupAt('/setup/connect-existing');
+    const { router } = await renderAndScan();
     await userEvent.click(await screen.findByTestId('blox-select-hw-1'));
     await userEvent.click(screen.getByTestId('add-selected'));
     await waitFor(() =>
@@ -125,7 +135,7 @@ describe('ConnectToExistingBlox', () => {
     propsMock.mockImplementation(async (ip: string) =>
       ip === AP_HOST ? bloxProps('12D3KooWSomeoneElse') : Promise.reject(new Error('x')),
     );
-    const { router } = await renderSetupAt('/setup/connect-existing');
+    const { router } = await renderAndScan();
     expect(await screen.findByText('Not Authorized')).toBeInTheDocument();
     expect(screen.getByTestId('blox-select-hw-1')).toBeDisabled();
     expect(
@@ -141,7 +151,7 @@ describe('ConnectToExistingBlox', () => {
     propsMock.mockImplementation(async (ip: string) =>
       ip === AP_HOST ? bloxProps('') : Promise.reject(new Error('x')),
     );
-    const { router } = await renderSetupAt('/setup/connect-existing');
+    const { router } = await renderAndScan();
     expect(await screen.findByText('New Device')).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('blox-setup-hw-1'));
     await waitFor(() => expect(router.state.location.pathname).toBe('/setup/set-authorizer'));
@@ -152,30 +162,22 @@ describe('ConnectToExistingBlox', () => {
     expect(q.get('manual')).toBeNull();
   });
 
-  it('nothing found → empty state; the manual IP card validates and opens the LAN setup', async () => {
+  it('nothing found → empty state, and manual entry asks for a peer id, never an address', async () => {
     propsMock.mockRejectedValue(new Error('unreachable'));
-    const { router } = await renderSetupAt('/setup/connect-existing');
+    await renderAndScan();
     expect(await screen.findByTestId('no-devices')).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('add-manually'));
-    const ip = screen.getByTestId('manual-ip');
-    await userEvent.type(ip, '8.8.8.8');
-    expect(screen.getByTestId('manual-connect')).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent('private network address');
-    await userEvent.clear(ip);
-    await userEvent.type(ip, '192.168.1.50');
-    await userEvent.click(screen.getByTestId('manual-connect'));
-    await waitFor(() =>
-      expect(router.state.location.pathname + router.state.location.search).toBe(
-        '/setup/set-authorizer?ip=192.168.1.50&port=3500',
-      ),
-    );
+    expect(screen.getByTestId('manual-peer-id')).toBeInTheDocument();
+    // This screen adds a Blox you already own, and such a Blox serves nothing on the LAN — an address field
+    // here could only ever fail. Claiming a not-yet-set-up Blox by address belongs to ConnectToBlox.
+    expect(screen.queryByTestId('manual-ip')).toBeNull();
   });
 
   it('manual card: a pasted Blox peer id adds the Blox without trying to claim it', async () => {
     // The route for someone moving over from the phone. Their Blox already has an owner, so it no longer
     // answers on the LAN at all — the peer id is what identifies it, and management runs over the relay.
     propsMock.mockRejectedValue(new Error('unreachable'));
-    const { router } = await renderSetupAt('/setup/connect-existing');
+    const { router } = await renderAndScan();
     expect(await screen.findByTestId('no-devices')).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('add-manually'));
 
@@ -204,7 +206,7 @@ describe('ConnectToExistingBlox', () => {
     propsMock.mockRejectedValue(new Error('unreachable'));
     ble.state!.pick.mockResolvedValue(fakeSession());
     ble.state!.responses.properties = bloxProps(TEST_APP_PEER_ID, 'hw-ble').data;
-    await renderSetupAt('/setup/connect-existing');
+    await renderAndScan();
     await waitFor(() => expect(useUserProfileStore.getState().appPeerId).toBe(TEST_APP_PEER_ID));
     expect(initFulaMock).toHaveBeenCalledWith({
       password: 'test-password',
