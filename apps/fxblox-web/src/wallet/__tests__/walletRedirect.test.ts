@@ -72,14 +72,25 @@ describe('captureAutoRedirect', () => {
     expect(capture.captured()).toBe(REQUEST_URL);
     // The page must NOT have navigated — that is the whole point: the publish needs the tab in the foreground.
     expect(open).not.toHaveBeenCalled();
+    expect(capture.sawOpen()).toBe(false);
     capture.release();
   });
 
-  it('passes unrelated opens straight through', () => {
+  it('passes unrelated opens straight through, and says so', () => {
     const capture = captureAutoRedirect();
     window.open('https://docs.fx.land/fxblox-web/', '_blank');
     expect(open).toHaveBeenCalledWith('https://docs.fx.land/fxblox-web/', '_blank', undefined);
     expect(capture.captured()).toBeNull();
+    // The caller needs to tell "nothing navigated" from "something navigated in a shape I did not recognise":
+    // the first is its cue to make the hop itself, the second would bounce the user twice.
+    expect(capture.sawOpen()).toBe(true);
+    capture.release();
+  });
+
+  it('reports no open at all when nothing tried to navigate', () => {
+    const capture = captureAutoRedirect();
+    expect(capture.captured()).toBeNull();
+    expect(capture.sawOpen()).toBe(false);
     capture.release();
   });
 
@@ -159,10 +170,10 @@ describe('onceSessionRequestSent', () => {
 
 describe('requestLinkFrom', () => {
   const event = { id: 42, topic: 'abc123' };
-  const inert = { captured: () => null, release: () => undefined };
+  const inert = { captured: () => null, sawOpen: () => false, release: () => undefined };
 
   it('prefers the URL the library built, which is by definition the shape the wallet expects', () => {
-    const capture = { captured: () => REQUEST_URL, release: () => undefined };
+    const capture = { captured: () => REQUEST_URL, sawOpen: () => false, release: () => undefined };
     expect(requestLinkFrom(capture, 'metamask://', event)).toBe(REQUEST_URL);
   });
 

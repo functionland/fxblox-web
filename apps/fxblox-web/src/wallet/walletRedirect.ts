@@ -62,7 +62,15 @@ function signClientFrom(provider: unknown): SignClientLike | null {
 }
 
 /**
- * Fire `handler` once, when the request has actually been published to the relay.
+ * Fire `handler` once, when the engine has finished trying to publish the request.
+ *
+ * NOT a success signal, despite the name. The engine does
+ *
+ *     await this.sendRequest({ … }).catch(g => y(g)), this.client.events.emit('session_request_sent', …)
+ *
+ * and `.catch()` returns a RESOLVED promise, so the comma sequence reaches the emit whether the publish
+ * succeeded or rejected — `y` being the deferred's reject. Callers that act on this event have to allow for the
+ * request having already failed; see how WalletSigner defers its app-switch by a macrotask to find out.
  *
  * Returns an unsubscribe. Safe on a provider that is not WalletConnect-backed: there is no client to listen to,
  * so the caller never hears back and falls through to its manual affordance.
@@ -104,11 +112,24 @@ export function isWalletRequestUrl(url: string): boolean {
 export interface RedirectCapture {
   /** The URL WalletConnect wanted to open, or null if it has not tried (yet, or at all). */
   captured(): string | null;
+  /**
+   * Did an `open` go THROUGH to the browser while this was installed?
+   *
+   * The difference matters, because "we captured nothing" has two opposite meanings. Either nothing tried to
+   * navigate — no deep-link choice was stored, or the publish announced itself before the redirect arm got
+   * there — and the caller should make the hop itself; or something navigated in a shape this did not
+   * recognise, and hopping again would bounce the user a second time.
+   */
+  sawOpen(): boolean;
   /** Hand `window.open` back. Idempotent. */
   release(): void;
 }
 
-const INERT_CAPTURE: RedirectCapture = { captured: () => null, release: () => undefined };
+const INERT_CAPTURE: RedirectCapture = {
+  captured: () => null,
+  sawOpen: () => false,
+  release: () => undefined,
+};
 
 /**
  * Swallow WalletConnect's redirect and remember where it pointed, until `release()`.
@@ -123,6 +144,7 @@ export function captureAutoRedirect(): RedirectCapture {
   // capture/release cycles do not stack wrappers.
   const original = window.open;
   let captured: string | null = null;
+  let passedThrough = false;
   let released = false;
 
   const patched = ((url?: string | URL, target?: string, features?: string): Window | null => {
@@ -131,6 +153,7 @@ export function captureAutoRedirect(): RedirectCapture {
       captured = href;
       return null;
     }
+    passedThrough = true;
     return original.call(window, url, target, features);
   }) as Window['open'];
 
@@ -138,6 +161,7 @@ export function captureAutoRedirect(): RedirectCapture {
 
   return {
     captured: () => captured,
+    sawOpen: () => passedThrough,
     release: () => {
       if (released) return;
       released = true;

@@ -20,8 +20,8 @@
  * as concurrent arms of one `Promise.all`. On Android the app-switch then takes the network away from this page
  * before the publish finishes, so the wallet comes to the front to collect a request that never left. That is
  * the "MetaMask opens and hangs" report. `walletRedirect.ts` holds the redirect back; here we wait for
- * `session_request_sent` — emitted only once the relay has the payload — and hop then, carrying the request id
- * the wallet needs to find the prompt.
+ * `session_request_sent` — which means the engine has finished TRYING to publish, success or not — and hop
+ * then, carrying the request id the wallet needs to find the prompt.
  *
  * `signChainCode()` stays byte-identical to mobile: the signature seeds the DID secret key, so a changed byte
  * means web and mobile derive different identities from the same password and wallet.
@@ -171,15 +171,25 @@ export default function WalletSigner({
     // the page. See walletRedirect.ts for what goes wrong without this.
     const href = connectedWalletLink(w.provider);
     const capture = captureAutoRedirect();
+    let settled = false;
     const unsubscribe = onceSessionRequestSent(w.provider, (event) => {
       const link = requestLinkFrom(capture, href, event);
       if (!link) return;
       setRequestLink(link);
-      // Only hop if the library's redirect was actually held back. If it slipped through, the wallet is already
-      // in front and a second navigation would bounce the user for no reason.
-      // This runs a few hundred ms after the tap, inside Chrome's transient user activation window — but if a
-      // slow publish outlasts it the navigation is dropped silently, which is what the button below is for.
-      if (capture.captured()) assign(link);
+      // `session_request_sent` is not a success signal — the engine emits it even when the publish REJECTED
+      // (see onceSessionRequestSent). Hopping then would send the user to a wallet with nothing waiting for
+      // it, which is the hang this whole change exists to remove. The rejection is already queued by the time
+      // this listener runs, so yielding one macrotask is enough to see it. It costs nothing against Chrome's
+      // transient user activation, which is measured in seconds.
+      setTimeout(() => {
+        if (settled) return;
+        // Hop unless something already navigated. A captured URL means the library's redirect was held back
+        // and we are still here. Nothing captured AND nothing passed through means nobody navigated at all —
+        // no deep-link choice stored, or the publish announced itself first — which is still ours to do. The
+        // remaining case is a navigation in a shape we did not recognise: the wallet is already in front, and
+        // hopping again would bounce the user twice.
+        if (capture.captured() || !capture.sawOpen()) assign(link);
+      }, 0);
     });
     try {
       if (!w.provider) throw new Error('Provider not available');
@@ -192,6 +202,7 @@ export default function WalletSigner({
       setPhase('idle');
       latest.current.onError(err);
     } finally {
+      settled = true;
       unsubscribe();
       capture.release();
     }
