@@ -67,8 +67,31 @@ describe('WalletNotification', () => {
     expect(screen.queryByTestId('wallet-notification')).toBeNull();
   });
 
-  it('a manual-signature address suppresses the connect notification', () => {
+  it('still asks to connect when the only address is a linked one', () => {
+    // This used to assert the opposite. `manualSignatureWalletAddress` is written once by the manual signing
+    // path and never cleared, and it suppressed this banner outright — so anyone who linked that way could
+    // never be told their wallet was disconnected again, while Settings > Pools read live contract state and
+    // said "Disconnected". A pasted signature cannot sign a transaction, so it is not a reason to stay quiet.
     useUserProfileStore.setState({ manualSignatureWalletAddress: '0xmanual' });
+    render(
+      <TestProviders>
+        <WalletNotification compact />
+      </TestProviders>,
+    );
+    act(() => {
+      vi.advanceTimersByTime(WALLET_NOTIFICATION_DELAY_MS * 2);
+    });
+    const banner = screen.getByTestId('wallet-notification');
+    expect(banner).toHaveAttribute('data-notification', 'connect');
+    expect(banner).toHaveTextContent('Connect Your Wallet');
+  });
+
+  it('a live connection on the right network still hides it, linked address or not', () => {
+    // The other half of the change: a linked address must not make the banner appear when a wallet IS connected.
+    useUserProfileStore.setState({ manualSignatureWalletAddress: '0xmanual' });
+    appkitState.isConnected = true;
+    appkitState.address = '0xabc';
+    appkitState.chainId = 2046399126;
     render(
       <TestProviders>
         <WalletNotification compact />

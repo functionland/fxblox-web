@@ -17,12 +17,27 @@ import { useRef } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const poolsState = vi.hoisted(() => ({ userIsMemberOfAnyPool: false, userActiveRequests: [] as string[] }));
-const walletState = vi.hoisted(() => ({ connected: false, connectWallet: () => undefined }));
+const walletState = vi.hoisted(() => ({
+  connected: false,
+  linkedAddress: null as string | null,
+  connectWallet: () => undefined,
+}));
 vi.mock('@/hooks/usePoolsWithFallback', () => ({
   usePoolsWithFallback: () => poolsState,
 }));
 vi.mock('@/hooks/useWalletConnection', () => ({
   useWalletConnection: () => walletState,
+}));
+// The "connect wallet" item now reads a LIVE connection from useWalletStatus rather than treating a stored
+// manual-signature address as one. Driven from the same flag so the cases below read unchanged.
+vi.mock('@/hooks/useWalletStatus', () => ({
+  useWalletStatus: () => ({
+    connected: walletState.connected,
+    account: walletState.connected ? '0xABC' : null,
+    linkedAddress: walletState.linkedAddress,
+    displayAddress: walletState.connected ? '0xABC' : walletState.linkedAddress,
+    linkedOnly: !walletState.connected && !!walletState.linkedAddress,
+  }),
 }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k }),
@@ -35,10 +50,13 @@ function Probe() {
   renders.current += 1;
   // Deliberately unstable, exactly like the original TasksCard call site.
   const { tasks } = useTasksLogic({ navigateToPools: () => undefined });
+  const connect = tasks.find((task: Task) => task.id === 'connect-wallet');
   return (
     <div>
       <span data-testid="renders">{renders.current}</span>
       <span data-testid="tasks">{tasks.length}</span>
+      <span data-testid="connect-wallet-done">{String(!!connect?.isCompleted)}</span>
+      <span data-testid="connect-wallet-actionable">{String(!!connect?.route)}</span>
     </div>
   );
 }
@@ -59,6 +77,29 @@ describe('useTasksLogic', () => {
     poolsState.userIsMemberOfAnyPool = false;
     poolsState.userActiveRequests = [];
     walletState.connected = false;
+    walletState.linkedAddress = null;
+  });
+
+  it('does not tick "connect wallet" for a linked address with no live connection', async () => {
+    // The bug this pins: `manualSignatureWalletAddress` is written once by the manual signing path and never
+    // cleared, and it used to count as a connection. The item went permanently green while Settings > Pools —
+    // reading live contract state — said "Disconnected", and the item below it (join a pool, a transaction)
+    // could not actually be completed. A pasted signature cannot sign anything.
+    walletState.connected = false;
+    walletState.linkedAddress = '0x6c249ea1aae83539962df58b630f7b6447f5122f';
+    render(<Probe />);
+
+    await waitFor(() => expect(screen.getByTestId('connect-wallet-done')).toHaveTextContent('false'));
+    expect(screen.getByTestId('connect-wallet-actionable')).toHaveTextContent('true');
+  });
+
+  it('ticks "connect wallet" once a wallet is actually connected', async () => {
+    walletState.connected = true;
+    render(<Probe />);
+
+    await waitFor(() => expect(screen.getByTestId('connect-wallet-done')).toHaveTextContent('true'));
+    // Nothing left to do, so the item is inert.
+    expect(screen.getByTestId('connect-wallet-actionable')).toHaveTextContent('false');
   });
 
   it('settles with an unstable navigateToPools instead of re-rendering forever', async () => {

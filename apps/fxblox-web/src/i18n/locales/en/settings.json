@@ -151,6 +151,7 @@
       "connected": "Connected",
       "disconnected": "Disconnected",
       "account": "Account: {{account}}",
+      "linkedAccount": "Linked: {{account}} — not connected",
       "searchPlaceholder": "Search pools...",
       "refresh": "Refresh",
       "retry": "Retry",

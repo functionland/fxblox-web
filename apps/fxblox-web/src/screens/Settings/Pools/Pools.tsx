@@ -32,6 +32,7 @@ import { errorMessage, shortAccount } from '@/components/settings/format';
 import { CurrentBloxIndicator } from '@/components/CurrentBloxIndicator';
 import { usePoolsWithFallback } from '@/hooks/usePoolsWithFallback';
 import { useWalletNetwork } from '@/hooks/useWalletNetwork';
+import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { useLogger } from '@/hooks/useLogger';
 import type { PoolData } from '@/hooks/usePools';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -91,6 +92,7 @@ export default function Pools() {
   } = usePoolsWithFallback();
   const selectedChain = useSettingsStore((state) => state.selectedChain);
   const { withCorrectNetwork } = useWalletNetwork();
+  const { linkedOnly } = useWalletStatus();
 
   // Latest values for the async `reloading` (the effect below keys on `refreshing` only, as on mobile).
   const latest = useRef({
@@ -335,8 +337,13 @@ export default function Pools() {
           </FxText>
         </FxBox>
         {connectedAccount && (
+          // `connectedAccount` falls back to the address from a manual signature link, so on its own it printed
+          // an "Account:" line directly under the word "Disconnected". Say which one it is instead: a linked
+          // address is who the user is, not a wallet that can sign anything.
           <FxText variant="bodyXSRegular" color="content2" marginTop="4" title={connectedAccount}>
-            {t('settings.pools.account', { account: shortAccount(connectedAccount) })}
+            {linkedOnly
+              ? t('settings.pools.linkedAccount', { account: shortAccount(connectedAccount) })
+              : t('settings.pools.account', { account: shortAccount(connectedAccount) })}
           </FxText>
         )}
       </FxBox>

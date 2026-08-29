@@ -151,6 +151,7 @@
       "connected": "已连接",
       "disconnected": "已断开",
       "account": "账户：{{account}}",
+      "linkedAccount": "已关联：{{account}} — 未连接",
       "searchPlaceholder": "搜索矿池...",
       "refresh": "刷新",
       "retry": "重试",
