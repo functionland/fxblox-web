@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePoolsWithFallback } from './usePoolsWithFallback';
 import { useWalletConnection } from './useWalletConnection';
-import { useUserProfileStore } from '@/stores/useUserProfileStore';
+import { useWalletStatus } from './useWalletStatus';
 
 export interface Task {
   id: string | number;
@@ -32,8 +32,8 @@ export const REFRESH_MS = 1000;
 export const useTasksLogic = (options: UseTasksLogicOptions = {}) => {
   const { t } = useTranslation('tasks');
   const { userIsMemberOfAnyPool, userActiveRequests } = usePoolsWithFallback();
-  const { connected, connectWallet } = useWalletConnection();
-  const manualSignatureWalletAddress = useUserProfileStore((state) => state.manualSignatureWalletAddress);
+  const { connectWallet } = useWalletConnection();
+  const { connected } = useWalletStatus();
   const navigateToPools = options.navigateToPools;
 
   const [loading, setLoadingState] = useState(false);
@@ -45,7 +45,11 @@ export const useTasksLogic = (options: UseTasksLogicOptions = {}) => {
   }, [navigateToPools]);
 
   const hasPendingRequest = !!userActiveRequests && userActiveRequests.length > 0 && userActiveRequests[0] !== '0';
-  const hasWallet = connected || !!manualSignatureWalletAddress;
+  // A LIVE connection only. This item exists to get the user to a wallet they can transact with, and the item
+  // right below it — joining a pool — is a transaction. A stored signature from the manual link path proves
+  // someone controls an address; it cannot sign anything. Ticking this off on the strength of it told the user
+  // they were ready when they were not, while Settings > Pools said "Disconnected". See useWalletStatus.
+  const hasWallet = connected;
 
   const tasks = useMemo<Task[]>(
     () => [

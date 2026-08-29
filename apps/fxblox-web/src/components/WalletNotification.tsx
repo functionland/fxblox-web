@@ -10,7 +10,6 @@ import { useWalletConnection } from '@/hooks/useWalletConnection';
 import { useWalletNetwork } from '@/hooks/useWalletNetwork';
 import { useContractIntegration } from '@/hooks/useContractIntegration';
 import { useWallet } from '@/wallet/useWallet';
-import { useUserProfileStore } from '@/stores/useUserProfileStore';
 
 export type WalletNotificationType = 'connect' | 'network' | 'hidden';
 
@@ -41,13 +40,13 @@ export function WalletNotification({
     useWalletNetwork();
   const { isInitializing } = useContractIntegration();
   const { account } = useWallet();
-  const manualSignatureWalletAddress = useUserProfileStore((state) => state.manualSignatureWalletAddress);
   const [isLoading, setIsLoading] = useState(false);
   const [showAfterDelay, setShowAfterDelay] = useState(false);
   const [postLoadingDelay, setPostLoadingDelay] = useState(false);
 
-  // Determine if we have any account (connected wallet or manual signature)
-  const hasAnyAccount = Boolean((connected && account) || manualSignatureWalletAddress);
+  // Only a live session counts. The delay below exists to stop the banner flashing while a session is being
+  // restored on load — a stored linked address tells us nothing about that, so it must not gate it either.
+  const hasAnyAccount = Boolean(connected && account);
 
   // Add delay before showing connect wallet notification to prevent flicker
   useEffect(() => {
@@ -77,7 +76,11 @@ export function WalletNotification({
 
   const notificationType: WalletNotificationType = (() => {
     if (connected && account) return isOnCorrectNetwork ? 'hidden' : 'network';
-    if (manualSignatureWalletAddress) return 'hidden';
+    // A linked address used to suppress this outright (`if (manualSignatureWalletAddress) return 'hidden'`).
+    // That address is written once by the manual signing path and never cleared, so anyone who linked that way
+    // could never be told their wallet was disconnected again — no banner, and the home screen's action item
+    // ticked, while Settings > Pools read live contract state and said "Disconnected". A pasted signature
+    // cannot sign a transaction, so it is not a reason to stay quiet. See hooks/useWalletStatus.
     return showAfterDelay ? 'connect' : 'hidden';
   })();
 
