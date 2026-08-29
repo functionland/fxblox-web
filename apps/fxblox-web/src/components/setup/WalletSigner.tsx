@@ -35,7 +35,7 @@ import { setAppKitTheme } from '@/wallet/appkit';
 import { signChainCode } from '@/wallet/signChainCode';
 import { connectedWalletLink } from '@/wallet/walletLink';
 import { captureAutoRedirect, onceSessionRequestSent, requestLinkFrom } from '@/wallet/walletRedirect';
-import { useRelayWake } from '@/wallet/relayWake';
+import { isRelayConnected, useRelayWake, wakeRelay } from '@/wallet/relayWake';
 import { useWallet } from '@/wallet/useWallet';
 
 /**
@@ -52,6 +52,26 @@ export type SignerPhase = 'idle' | 'connecting' | 'readyToSign' | 'signing';
  * awaited, so a signature approved two minutes later still lands.
  */
 export const WALLET_NUDGE_MS = 4000;
+
+/**
+ * How long before offering the way out of a wallet that opened and then wedged.
+ *
+ * MetaMask on Android sometimes comes to the front from a backgrounded state and sits on its splash screen
+ * without ever rendering the prompt; a full quit and a second hop fixes it. That is a wallet-side fault with a
+ * long tail of open reports (MetaMask/metamask-mobile#4827, #2045, reown-com/appkit#4785), and a web page has
+ * no way to reach into it — so the honest thing is to say what happened and how to get past it.
+ *
+ * Long enough not to accuse a wallet that is merely slow, since the prompt often takes several seconds.
+ */
+export const WALLET_STUCK_MS = 12000;
+
+/**
+ * How long the `window.open` intercept outlives the request that installed it.
+ *
+ * The engine's redirect runs as a separate arm of a `Promise.all` that rejects on the first failure without
+ * waiting for it, so the redirect can still fire after the request is over. See the `finally` below.
+ */
+export const REDIRECT_GRACE_MS = 5000;
 
 export interface WalletSignerProps {
   password: string;
@@ -83,6 +103,7 @@ export default function WalletSigner({
   const cancelledRef = useRef(false);
   const [phase, setPhase] = useState<SignerPhase>('idle');
   const [showNudge, setShowNudge] = useState(false);
+  const [showStuckHint, setShowStuckHint] = useState(false);
   // Set once the request is on the relay: the deep link that opens the wallet ON this request, rather than on
   // its home screen. Mirrored into a ref for the stable tap handler below.
   const [requestLink, setRequestLink] = useState<string | null>(null);
@@ -111,10 +132,15 @@ export default function WalletSigner({
   useEffect(() => {
     if (phase !== 'signing') {
       setShowNudge(false);
+      setShowStuckHint(false);
       return undefined;
     }
-    const timer = setTimeout(() => setShowNudge(true), WALLET_NUDGE_MS);
-    return () => clearTimeout(timer);
+    const nudge = setTimeout(() => setShowNudge(true), WALLET_NUDGE_MS);
+    const stuck = setTimeout(() => setShowStuckHint(true), WALLET_STUCK_MS);
+    return () => {
+      clearTimeout(nudge);
+      clearTimeout(stuck);
+    };
   }, [phase]);
 
   /**
@@ -182,13 +208,30 @@ export default function WalletSigner({
       // this listener runs, so yielding one macrotask is enough to see it. It costs nothing against Chrome's
       // transient user activation, which is measured in seconds.
       setTimeout(() => {
-        if (settled) return;
+        if (settled) {
+          console.log('[sign] not opening the wallet: the request already settled');
+          return;
+        }
+        // With the socket down the request is not on the relay, whatever the publish reported — the engine
+        // queues a failed publish and retries it. Opening the wallet now is what produces a wallet sitting on
+        // its splash screen with nothing to show. Wake the socket instead and leave the user here, where the
+        // button and the hint are.
+        if (isRelayConnected(latest.current.wallet.provider) === false) {
+          console.log('[sign] not opening the wallet: relay socket is down, waking it instead');
+          wakeRelay(latest.current.wallet.provider);
+          return;
+        }
         // Hop unless something already navigated. A captured URL means the library's redirect was held back
         // and we are still here. Nothing captured AND nothing passed through means nobody navigated at all —
         // no deep-link choice stored, or the publish announced itself first — which is still ours to do. The
         // remaining case is a navigation in a shape we did not recognise: the wallet is already in front, and
         // hopping again would bounce the user twice.
-        if (capture.captured() || !capture.sawOpen()) assign(link);
+        if (capture.captured() || !capture.sawOpen()) {
+          console.log('[sign] opening the wallet on the request:', link);
+          assign(link);
+        } else {
+          console.log('[sign] not opening the wallet: something already navigated');
+        }
       }, 0);
     });
     try {
@@ -204,7 +247,13 @@ export default function WalletSigner({
     } finally {
       settled = true;
       unsubscribe();
-      capture.release();
+      // NOT released here. The engine's redirect arm can still be in flight: its `Promise.all` rejects on the
+      // FIRST rejection and does not wait for the other arms, so a failed publish tears us down while the
+      // redirect is still pending. Releasing at that moment hands the redirect back the real `window.open`,
+      // and it opens the wallet on the request that just failed — a wallet with nothing to show, which is
+      // exactly the splash-screen hang. Holding the intercept longer costs nothing: it only ever swallows
+      // wallet-request URLs, which nothing else in this app produces.
+      setTimeout(() => capture.release(), REDIRECT_GRACE_MS);
     }
   }, []);
 
@@ -233,6 +282,11 @@ export default function WalletSigner({
       {phase === 'readyToSign' && (
         <FxText variant="bodyXSRegular" color="content2" textAlign="center" testID="ready-to-sign">
           {t('setup.linkPassword.walletConnectedTapSign')}
+        </FxText>
+      )}
+      {showStuckHint && walletLink && (
+        <FxText variant="bodyXSRegular" color="content2" textAlign="center" testID="wallet-stuck-hint">
+          {t('setup.linkPassword.walletStuckHint')}
         </FxText>
       )}
       {showOpenWallet && walletLink && (

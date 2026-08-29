@@ -49,7 +49,7 @@ vi.mock('@/platform/linking', async (importOriginal) => {
   return { ...actual, assign: vi.fn() };
 });
 
-import { WALLET_NUDGE_MS } from '@/components/setup/WalletSigner';
+import { WALLET_NUDGE_MS, WALLET_STUCK_MS } from '@/components/setup/WalletSigner';
 import { useUserProfileStore } from '@/stores/useUserProfileStore';
 import * as linking from '@/platform/linking';
 import * as secureStore from '@/platform/secureStore';
@@ -206,6 +206,13 @@ describe('LinkPassword', () => {
     await user.click(open);
     expect(linking.assign).toHaveBeenCalledWith('metamask://');
 
+    // And, once it is clear the wallet came forward and then wedged, the way out of that. MetaMask on Android
+    // sometimes sits on its splash screen without ever rendering the prompt; a full quit and a second hop is
+    // the only known cure, and nothing on a web page can reach in and fix it.
+    expect(
+      await screen.findByTestId('wallet-stuck-hint', undefined, { timeout: WALLET_STUCK_MS + 4000 }),
+    ).toBeInTheDocument();
+
     // The nudge must not abandon the request. A user who approves after switching apps by hand has their
     // signature accepted, rather than being told it timed out with the wallet prompt already signed.
     await act(async () => {
@@ -301,6 +308,47 @@ describe('LinkPassword', () => {
     await waitFor(() =>
       expect(linking.assign).toHaveBeenCalledWith('metamask://wc?requestId=42&sessionTopic=topic-1'),
     );
+    await act(async () => {
+      approve('0xlate');
+    });
+    await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xlate'));
+  });
+
+  it('wallet path: a dead relay socket keeps the user here and wakes the socket', async () => {
+    // With the socket down the request is not on the relay — the engine queues a failed publish and retries.
+    // Opening the wallet then is what produces a wallet sitting on its splash screen with nothing to show.
+    const user = userEvent.setup();
+    vi.mocked(linking.assign).mockClear();
+    const transportOpen = vi.fn(async () => undefined);
+    const listeners = new Set<(payload: unknown) => void>();
+    let approve: (sig: string) => void = () => undefined;
+    wallet.state.account = '0xABC';
+    wallet.state.connected = true;
+    wallet.state.provider = {
+      request: vi.fn(() => {
+        for (const fn of [...listeners])
+          fn({ topic: 'topic-1', request: {}, chainId: 'eip155:1', id: 42 });
+        return new Promise<string>((resolve) => (approve = resolve));
+      }),
+      session: { peer: { metadata: { redirect: { native: 'metamask://' } } } },
+      client: {
+        on: (_event: string, fn: (payload: unknown) => void) => listeners.add(fn),
+        off: (_event: string, fn: (payload: unknown) => void) => listeners.delete(fn),
+        core: { relayer: { connected: false, connecting: false, transportOpen } },
+      },
+    } as never;
+
+    await renderSetupAt('/setup/link-password');
+    await fillPasswordAndConsent(user);
+    await user.click(await screen.findByTestId('sign-with-wallet'));
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(linking.assign).not.toHaveBeenCalled();
+    expect(transportOpen).toHaveBeenCalled();
+    // The request is still live, so a signature that arrives once the socket recovers is still accepted.
+    expect(await screen.findByTestId('open-wallet')).toBeInTheDocument();
     await act(async () => {
       approve('0xlate');
     });
