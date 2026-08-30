@@ -59,6 +59,8 @@ export interface BleSessionOptions {
   characteristicUUID?: string;
   /** getPrimaryService retries (default 3) and the base backoff (default 1000 ms). */
   serviceRetries?: number;
+  /** gatt.connect() attempts (default 3). Android's status 133 on a first connect is routine. */
+  connectRetries?: number;
   retryBaseMs?: number;
   log?: (message: string, ...args: unknown[]) => void;
 }
@@ -130,7 +132,7 @@ export function _resetSessionsForTests(): void {
 
 export class BleSession implements BleTransport {
   readonly device: BluetoothDeviceLike;
-  private readonly opts: Required<Pick<BleSessionOptions, 'allowChunkedWrites' | 'serviceUUID' | 'characteristicUUID' | 'serviceRetries' | 'retryBaseMs'>> & {
+  private readonly opts: Required<Pick<BleSessionOptions, 'allowChunkedWrites' | 'serviceUUID' | 'characteristicUUID' | 'serviceRetries' | 'connectRetries' | 'retryBaseMs'>> & {
     log: (message: string, ...args: unknown[]) => void;
   };
   private characteristics = new Map<string, BluetoothRemoteGATTCharacteristicLike>();
@@ -155,6 +157,7 @@ export class BleSession implements BleTransport {
       serviceUUID: opts.serviceUUID ?? BLE_SERVICE_UUID,
       characteristicUUID: opts.characteristicUUID ?? BLE_COMMAND_CHARACTERISTIC_UUID,
       serviceRetries: opts.serviceRetries ?? 3,
+      connectRetries: opts.connectRetries ?? 3,
       retryBaseMs: opts.retryBaseMs ?? 1000,
       log: opts.log ?? ((m, ...a) => console.log('[BLE]', m, ...a)),
     };
@@ -181,6 +184,7 @@ export class BleSession implements BleTransport {
   applyOptions(opts: BleSessionOptions): void {
     if (opts.allowChunkedWrites !== undefined) this.opts.allowChunkedWrites = opts.allowChunkedWrites;
     if (opts.serviceRetries !== undefined) this.opts.serviceRetries = opts.serviceRetries;
+    if (opts.connectRetries !== undefined) this.opts.connectRetries = opts.connectRetries;
     if (opts.retryBaseMs !== undefined) this.opts.retryBaseMs = opts.retryBaseMs;
     if (opts.log) this.opts.log = opts.log;
   }
@@ -287,13 +291,55 @@ export class BleSession implements BleTransport {
     return c;
   }
 
+  /**
+   * `gatt.connect()`, retried — which on Android is the difference between working and not.
+   *
+   * A first connect to a freshly-chosen device frequently fails with Android's GATT status 133, surfacing to
+   * the page as a bare `NetworkError: Connection attempt failed`. Captured from the device, the link layer
+   * completes the connection and then the very first procedure times out:
+   *
+   *   on_le_connection_complete: addr=…:2c:93, conn_interval=36
+   *   btm_ble_read_remote_features_complete: Failed to read remote features
+   *       status:HCI_ERR_CONN_FAILED_ESTABLISHMENT
+   *   bta_gattc_open_fail: Cannot establish Connection. Return GATT_ERROR(133)
+   *
+   * That looked like a broken peripheral, and it is not: the native app connects to the same Blox from the
+   * same phone seconds later (`onSearchComplete status=0`). The difference is only that its BLE library
+   * retries the connect and this did not — one attempt, no recovery, while `getPrimaryService` right below
+   * had three.
+   *
+   * `disconnect()` between attempts matters as much as the retry. Android registers a GATT client interface
+   * per connect, and a failed attempt leaves it registered — the logs show `att_id` 44, 50, 56, 59 piling up
+   * across attempts. Those are a finite resource, and exhausting them produces more 133s, so each failure is
+   * released before the next try.
+   */
+  private async connectWithRetry(gatt: BluetoothRemoteGATTServerLike): Promise<void> {
+    const name = this.device.name ?? this.device.id;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= this.opts.connectRetries; attempt++) {
+      try {
+        this.opts.log(`connecting ${name} (attempt ${attempt}/${this.opts.connectRetries})`);
+        await gatt.connect();
+        if (attempt > 1) this.opts.log(`connected on attempt ${attempt}`);
+        return;
+      } catch (e) {
+        lastError = e;
+        this.opts.log(`connect attempt ${attempt} failed`, e);
+        try {
+          gatt.disconnect();
+        } catch {
+          // Already gone. The point is only to release the client interface, not to observe it.
+        }
+        if (attempt < this.opts.connectRetries) await sleep(this.opts.retryBaseMs * attempt);
+      }
+    }
+    throw lastError;
+  }
+
   private async doAttach(ref?: BleCharacteristicRef): Promise<void> {
     const gatt = this.device.gatt;
     if (!gatt) throw new BleUnavailableError('Device has no GATT server');
-    if (!gatt.connected) {
-      this.opts.log('connecting', this.device.name ?? this.device.id);
-      await gatt.connect();
-    }
+    if (!gatt.connected) await this.connectWithRetry(gatt);
     const { serviceUUID, characteristicUUID, key } = this.key(ref);
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.opts.serviceRetries; attempt++) {
