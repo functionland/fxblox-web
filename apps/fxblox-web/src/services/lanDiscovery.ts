@@ -31,6 +31,12 @@
  *
  * Hence `DiscoveryOutcome`: a failed scan says WHICH failure it was, so a blocked permission can never again be
  * mistaken for an absent device.
+ *
+ * ## Two strategies, not one
+ *
+ * Resolving the name is only half of it: Android cannot resolve .local at all (proven on a real device, see
+ * lanSweep.ts), so an address sweep runs alongside the name probes. Which one bears fruit depends on the
+ * platform, and running both means the platform never has to be detected.
  */
 import {
   buildLanRequest,
@@ -38,6 +44,7 @@ import {
   type LnaPermissionState,
 } from '@/platform/lanHttp';
 import { normalizeBloxPeerId } from '@/utils/bloxPeerId';
+import { sweepForBloxes } from './lanSweep';
 
 /** blox-ai. The only Blox HTTP port reachable over the LAN, and it already sends CORS for this origin. */
 export const BLOX_AI_PORT = 8083;
@@ -188,10 +195,21 @@ export interface DiscoveryOutcome {
  * and adding the same Blox twice under different names would be worse than not finding it.
  */
 export async function discoverBloxesOnLan(
-  opts: { hosts?: string[]; timeoutMs?: number; signal?: AbortSignal; attempts?: number } = {},
+  opts: {
+    hosts?: string[];
+    timeoutMs?: number;
+    signal?: AbortSignal;
+    attempts?: number;
+    /** Injected by tests; production uses the real address sweep. */
+    sweep?: (o: { signal?: AbortSignal }) => Promise<LanBlox[]>;
+  } = {},
 ): Promise<DiscoveryOutcome> {
   const hosts = opts.hosts ?? LOCAL_HOST_CANDIDATES;
-  const [results, lna] = await Promise.all([
+  const sweep = opts.sweep ?? sweepForBloxes;
+  // Both strategies at once, because which one can work is a property of the platform, not of the network:
+  // desktop Chrome resolves `.local` but hides its own address, Android exposes its address but resolves
+  // nothing. Running both means neither platform needs to be detected. See lanSweep.ts.
+  const [results, swept, lna] = await Promise.all([
     Promise.all(
       hosts.map((host) =>
         probeLocalHost(host, {
@@ -201,13 +219,15 @@ export async function discoverBloxesOnLan(
         }),
       ),
     ),
+    sweep({ ...(opts.signal !== undefined ? { signal: opts.signal } : {}) }).catch(() => [] as LanBlox[]),
     // Read alongside the probes rather than before them: on a browser that prompts, asking first would report
     // the state from before the user answered.
     lnaPermissionState(),
   ]);
 
   const byPeerId = new Map<string, LanBlox>();
-  for (const blox of results) {
+  // Name first: a `.local` host is friendlier to show than a bare address, and dedupe keeps the first seen.
+  for (const blox of [...results, ...swept]) {
     if (blox && !byPeerId.has(blox.peerId)) byPeerId.set(blox.peerId, blox);
   }
   const found = [...byPeerId.values()];
