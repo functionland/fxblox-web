@@ -9,6 +9,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import {
   BleSession,
+  BleSubscribeUnsupportedError,
   _resetSessionsForTests,
   type BluetoothDeviceLike,
   type BluetoothRemoteGATTCharacteristicLike,
@@ -93,5 +94,84 @@ describe('BleSession connect retry', () => {
     await session.attach();
     expect(attemptCount()).toBe(1);
     expect(gatt.disconnect).not.toHaveBeenCalled();
+  });
+});
+
+describe('subscribe on a Blox that will not accept a CCCD write', () => {
+  test('NotSupportedError becomes a message that names the problem', async () => {
+    // The real failure, isolated on a live Blox: connect/getService/getChar/write all succeed and only
+    // startNotifications fails, four times out of four. Replies arrive on that characteristic alone, so the
+    // command cannot ever complete — a generic GATT error would leave the user with an empty panel and no clue.
+    _resetSessionsForTests();
+    const characteristic = {
+      writeValueWithResponse: vi.fn(async () => undefined),
+      startNotifications: vi.fn(async () => {
+        const err = new Error('GATT operation failed for unknown reason.');
+        err.name = 'NotSupportedError';
+        throw err;
+      }),
+      stopNotifications: vi.fn(async () => undefined),
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    } as unknown as BluetoothRemoteGATTCharacteristicLike;
+    let connected = false;
+    const gatt = {
+      get connected() {
+        return connected;
+      },
+      connect: vi.fn(async () => {
+        connected = true;
+        return gatt;
+      }),
+      disconnect: vi.fn(() => {
+        connected = false;
+      }),
+      getPrimaryService: vi.fn(async () => ({ getCharacteristic: vi.fn(async () => characteristic) })),
+    };
+    const device: BluetoothDeviceLike = {
+      id: 'dev-cccd',
+      name: 'fulatower_dJpP7',
+      gatt,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    };
+    const session = new BleSession(device, { retryBaseMs: 0, log: () => undefined });
+
+    await expect(session.subscribe(() => undefined)).rejects.toBeInstanceOf(BleSubscribeUnsupportedError);
+    await expect(session.subscribe(() => undefined)).rejects.toThrow(/subscribe for replies/);
+  });
+
+  test('any other subscribe failure is passed through unchanged', async () => {
+    // Inventing a firmware diagnosis for an unrelated fault is how the wrong thing gets fixed.
+    _resetSessionsForTests();
+    const characteristic = {
+      startNotifications: vi.fn(async () => {
+        throw new DOMException('device is gone', 'NetworkError');
+      }),
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    } as unknown as BluetoothRemoteGATTCharacteristicLike;
+    let connected = false;
+    const gatt = {
+      get connected() {
+        return connected;
+      },
+      connect: vi.fn(async () => {
+        connected = true;
+        return gatt;
+      }),
+      disconnect: vi.fn(() => undefined),
+      getPrimaryService: vi.fn(async () => ({ getCharacteristic: vi.fn(async () => characteristic) })),
+    };
+    const device: BluetoothDeviceLike = {
+      id: 'dev-other',
+      name: 'fulatower_dJpP7',
+      gatt,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    };
+    const session = new BleSession(device, { retryBaseMs: 0, log: () => undefined });
+
+    await expect(session.subscribe(() => undefined)).rejects.toThrow(/device is gone/);
   });
 });
