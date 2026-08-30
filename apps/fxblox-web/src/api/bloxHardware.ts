@@ -64,8 +64,17 @@ export const exchangeConfigAtIp = async (ip: string, port: number, data: { peer_
  * Get Blox properties from a specific IP address (LAN/PC setup). Skips BLE. A successful response feeds the
  * LAN-IP cache so the AI transport selector can use this address later.
  */
-export const getBloxPropertiesAtIp = async (ip: string, port: number): Promise<{ data: TBloxProperty }> => {
-  const res = await lanJson<TBloxProperty>(`${apiUrlFor(ip, port)}/properties`, { timeoutMs: 1000 * 15 });
+export const getBloxPropertiesAtIp = async (
+  ip: string,
+  port: number,
+  opts: { timeoutMs?: number } = {},
+): Promise<{ data: TBloxProperty }> => {
+  // 15 s suits a deliberate one-off call. A scan probes several addresses at once, most of which are expected
+  // to be nothing, and waiting the full 15 s on each is what made the discovery spinner outlast its own
+  // results by half a minute — so the scan passes something shorter.
+  const res = await lanJson<TBloxProperty>(`${apiUrlFor(ip, port)}/properties`, {
+    timeoutMs: opts.timeoutMs ?? 1000 * 15,
+  });
   try {
     noteFromProperties(ip, res.data, port);
   } catch {

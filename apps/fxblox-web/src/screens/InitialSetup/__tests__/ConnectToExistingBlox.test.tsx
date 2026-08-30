@@ -67,8 +67,8 @@ function bloxProps(authorizer: string, hardwareID = 'hw-1') {
 }
 
 /**
- * Nothing scans on arrival any more: this screen adds a Blox you already own, and such a Blox answers
- * nothing on the network. Tests that want discovered devices ask for the search explicitly, as a user does.
+ * The search now runs on arrival. The explicit click here is redundant for the result but harmless, and it
+ * keeps these tests reading the way a user behaves when the first pass found nothing.
  */
 async function renderAndScan() {
   const rendered = await renderSetupAt('/setup/connect-existing');
@@ -86,6 +86,19 @@ describe('ConnectToExistingBlox', () => {
     lanIpCache.clear();
     resetBleMockState(ble.state!);
     BleRegistry._resetForTests();
+  });
+
+  it('searches the network on arrival, without being asked', async () => {
+    // It used to wait for a tap, for a reason that no longer holds: the search could not find an owned Blox at
+    // all, so running it unbidden only burned ~15 s and then blamed the user's network. It finds one now, in
+    // about five seconds, on desktop and on Android — so making people ask for it is pure friction.
+    propsMock.mockRejectedValue(new Error('nothing on the hotspot'));
+    discoverMock.mockResolvedValue({
+      found: [{ host: 'fxblox-rk1.local', peerId: TEST_BLOX_PEER_ID }],
+      lna: 'granted',
+    });
+    await renderSetupAt('/setup/connect-existing'); // note: no click
+    expect(await screen.findByTestId(`lan-found-${TEST_BLOX_PEER_ID}`)).toBeInTheDocument();
   });
 
   it('offers a Blox found by its .local name, routing on the peer id alone', async () => {
@@ -152,7 +165,7 @@ describe('ConnectToExistingBlox', () => {
     expect(screen.getByTestId('blox-cluster-peer-id-value')).toHaveTextContent(
       TEST_CLUSTER_PEER_ID,
     );
-    expect(propsMock).toHaveBeenCalledWith(AP_HOST, 3500);
+    expect(propsMock).toHaveBeenCalledWith(AP_HOST, 3500, expect.objectContaining({ timeoutMs: expect.any(Number) }));
     // The scan feeds the LAN-IP cache (AI transport selector).
     expect(lanIpCache.findAuthorizedBlox(TEST_BLOX_PEER_ID, TEST_APP_PEER_ID)).not.toBeNull();
 
