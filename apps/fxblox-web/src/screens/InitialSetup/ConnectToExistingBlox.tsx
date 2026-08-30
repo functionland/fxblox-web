@@ -477,7 +477,18 @@ export default function ConnectToExistingBlox() {
           </FxTag>
           {alreadyExist && <FxTag>{t('connectToExistingBlox.alreadyExist')}</FxTag>}
         </FxBox>
-        {isUnpaired && appPeerId && (
+        {/*
+          "Setup" claims an unowned Blox. One already in this app's list is owned — by this very identity — so
+          offering to claim it is wrong whatever `isUnpaired` says, and following it walks the user back
+          through the authorizer flow for a device they already have.
+
+          `alreadyExist` has to be part of this condition rather than left to `isUnpaired`, because the two
+          discovery paths do not learn the same things. Over the LAN, `/properties` carries `authorizer`, so
+          `isUnpaired` came out false and the button was correctly hidden. Read over Bluetooth that field does
+          not come through, `isUnpaired` defaults to true, and the card showed "Already exist" beside a Setup
+          button — which is what this fixes.
+        */}
+        {isUnpaired && appPeerId && !alreadyExist && (
           <FxBox marginTop="8">
             <FxButton
               onPress={() =>

@@ -224,6 +224,23 @@ describe('ConnectToExistingBlox', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/setup/bluetooth'));
   });
 
+  it('a Blox already in the list is never offered Setup, even when it reads as unpaired', async () => {
+    // Setup claims an UNOWNED Blox, so offering it for one already in the list is wrong however the card
+    // arrived at `isUnpaired` — following it walks the user back through the authorizer flow for a device
+    // they already have. This is exactly what Bluetooth discovery hit: the properties read over BLE carries
+    // no `authorizer`, so the card defaulted to unpaired and showed "Already exist" beside a Setup button.
+    propsMock.mockImplementation(async (ip: string) =>
+      ip === AP_HOST ? bloxProps('') : Promise.reject(new Error('x')),
+    );
+    useBloxsStore.setState({
+      bloxs: { [TEST_BLOX_PEER_ID]: { peerId: TEST_BLOX_PEER_ID, name: 'Blox Unit #1' } },
+    });
+    await renderAndScan();
+
+    expect(await screen.findByText('Already exist')).toBeInTheDocument();
+    expect(screen.queryByTestId('blox-setup-hw-1')).toBeNull();
+  });
+
   it('an unpaired Blox shows "New Device" and Setup goes to SetBloxAuthorizer with ip/port/peerId', async () => {
     propsMock.mockImplementation(async (ip: string) =>
       ip === AP_HOST ? bloxProps('') : Promise.reject(new Error('x')),
