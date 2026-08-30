@@ -64,6 +64,9 @@ import { loadManualBloxIp } from '@/utils/manualBloxIp';
 
 export const DEFAULT_WAP_PORT = 3500;
 
+/** Per-address timeout for the /properties probes, which now run unbidden on arrival. */
+export const SCAN_PROBE_TIMEOUT_MS = 4000;
+
 export type DiscoveredBlox = MDNSBloxService & { source: 'lan' | 'ble' };
 
 /** `/properties` answer at `ip:port` → the mDNS record shape the pairing flow consumes. */
@@ -148,7 +151,7 @@ export default function ConnectToExistingBlox() {
   const [lanFound, setLanFound] = useState<LanBlox[]>([]);
   /** The browser refused the local network outright — a different fact from `no Blox here`. */
   const [lanBlocked, setLanBlocked] = useState(false);
-  /** "Nothing found" is only true once something has looked. Nothing scans on arrival any more. */
+  /** "Nothing found" is only true once something has looked — the search now runs itself on arrival. */
   const [hasScanned, setHasScanned] = useState(false);
   const [addingBloxs, setAddingBloxs] = useState(false);
   const [checkboxState, setCheckboxState] = useState<Record<string, boolean>>({});
@@ -214,7 +217,10 @@ export default function ConnectToExistingBlox() {
       await Promise.all([
         ...candidates.map(async ({ ip, port }) => {
           try {
-            const res = await getBloxPropertiesAtIp(ip, port);
+            // Short, because these run on arrival now and most are expected to be nothing. The hotspot
+            // address in particular is a guaranteed timeout on a normal network, and at the default 15 s it
+            // kept the spinner turning long after the results were already on screen.
+            const res = await getBloxPropertiesAtIp(ip, port, { timeoutMs: SCAN_PROBE_TIMEOUT_MS });
             if (scanGeneration.current !== generation) return;
             if (res?.data && typeof res.data === 'object')
               addDevice(deviceFromProperties(res.data, { ip, port, source: 'lan' }));
@@ -305,14 +311,14 @@ export default function ConnectToExistingBlox() {
     if (mountedScan.current) return;
     mountedScan.current = true;
     if (!appPeerId) void generateAppPeerId();
-    // The network scan is NOT fired on arrival any more. This screen exists to add a Blox you already own,
-    // and such a Blox answers nothing on the network — it stops serving the setup API the moment it has an
-    // owner. So the scan structurally cannot find the very thing this screen is for, yet it ran for ~15 s
-    // (the hotspot probe alone waits that long) before the user could do anything, and then said "make sure
-    // your Blox is powered on and connected to the same network" — advice that could not have helped.
-    // It stays available as an explicit button: it does find a Blox that has NOT been set up yet, and one
-    // reached over its own hotspot.
-  }, [appPeerId, generateAppPeerId]);
+    // Search on arrival. This was removed once, correctly: back then the scan probed only `/properties` on
+    // :3500, which a Blox that already has an owner stops serving, so it could not find the very thing this
+    // screen exists for — it just burned ~15 s and then blamed the user's network. Both halves of that are
+    // now false. `/diag/relay` on :8083 answers on an owned Blox, and between the name probes and the address
+    // sweep it lands in about five seconds on desktop and on Android. A search that works is not something to
+    // make people ask for.
+    void scanLan();
+  }, [appPeerId, generateAppPeerId, scanLan]);
 
   const handleOnItemPress = (id: string) => {
     setCheckboxState((prev) => {
@@ -530,23 +536,29 @@ export default function ConnectToExistingBlox() {
             disabled for the ~15 s the network scan takes, on a screen whose network scan cannot find an
             already-owned Blox in the first place. The button the user needs was the one they had to wait for.
           */}
-          {/* Bluetooth leads: it is the one route that actually reaches a Blox that already has an owner. */}
+          {/*
+            The network search leads now, and runs by itself on arrival. Bluetooth used to lead because it was
+            the only route that reached an owned Blox; the network search now does too, and asks nothing of the
+            user — no pairing sheet, no device picker, no permission on desktop. Bluetooth stays as the second
+            button for the cases it still owns: a Blox on a different network, or a phone where the local
+            network is blocked.
+          */}
           <FxButton
             flex={1}
-            loading={bleConnecting}
-            onPress={() => void scanBle()}
-            testID="scan-ble"
-          >
-            {t('setup.connectToExistingBlox.scanViaBluetooth')}
-          </FxButton>
-          <FxButton
-            flex={1}
-            variant="inverted"
             loading={scanning}
             onPress={() => void scanLan()}
             testID="scan-lan"
           >
             {t('setup.connectToExistingBlox.scan')}
+          </FxButton>
+          <FxButton
+            flex={1}
+            variant="inverted"
+            loading={bleConnecting}
+            onPress={() => void scanBle()}
+            testID="scan-ble"
+          >
+            {t('setup.connectToExistingBlox.scanViaBluetooth')}
           </FxButton>
         </FxBox>
         <FxText variant="bodyXSRegular" color="content3">
