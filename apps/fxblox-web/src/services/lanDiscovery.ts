@@ -46,6 +46,27 @@ export const BLOX_AI_PORT = 8083;
 export const DEFAULT_PROBE_TIMEOUT_MS = 6000;
 
 /**
+ * How many times to ask for each name.
+ *
+ * A cold `.local` resolve is a coin flip, and the Blox is what makes it one: `wap/cmd/mdns/mdns.go` registers
+ * its service with `service.TTL(2)` — a TWO SECOND record TTL, against an mDNS norm of 120. The resolver cache
+ * is therefore empty almost every time we ask, so nearly every lookup is a fresh multicast query racing
+ * Chrome's own patience, which measurement puts at ~2.3 s. Observed directly on the live app: five consecutive
+ * probes all failed at ~2.3 s, then the next succeeded at 2704 ms and the one after it at 11 ms.
+ *
+ * A failed attempt is not wasted — the query it sent populates the cache — so a second attempt lands in
+ * milliseconds. Two attempts turns a coin flip into a near-certainty, and costs nothing when the first works.
+ *
+ * The real fix is firmware-side: raise that TTL. Until then this is what makes the feature usable, and it is
+ * also the most likely reason the scan never worked on Android, where multicast is slower and power-save
+ * filtering is common — one cold query there may simply never arrive in time.
+ */
+export const PROBE_ATTEMPTS = 2;
+
+/** Breather between attempts: long enough for the first query's answer to land in the cache. */
+export const RETRY_DELAY_MS = 300;
+
+/**
  * Names to try.
  *
  * `fxblox-rk1` is `/etc/hostname` on the RK1 image — the same on every such device, which is the only reason
@@ -94,8 +115,30 @@ export function probeUrl(host: string): string {
   return `http://${host}:${BLOX_AI_PORT}/diag/relay`;
 }
 
-/** Ask one candidate name whether it is a Blox, and which one. Never throws. */
+/**
+ * Ask one candidate name whether it is a Blox, and which one. Never throws.
+ *
+ * Retries once by default: see `PROBE_ATTEMPTS` for why a single cold attempt is not enough.
+ */
 export async function probeLocalHost(
+  host: string,
+  opts: { timeoutMs?: number; signal?: AbortSignal; attempts?: number; retryDelayMs?: number } = {},
+): Promise<LanBlox | null> {
+  const attempts = Math.max(1, opts.attempts ?? PROBE_ATTEMPTS);
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (opts.signal?.aborted) return null;
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, opts.retryDelayMs ?? RETRY_DELAY_MS));
+      if (opts.signal?.aborted) return null;
+    }
+    const found = await probeLocalHostOnce(host, opts);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** One request. The retry loop above is what makes this reliable. */
+export async function probeLocalHostOnce(
   host: string,
   opts: { timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<LanBlox | null> {
@@ -145,12 +188,18 @@ export interface DiscoveryOutcome {
  * and adding the same Blox twice under different names would be worse than not finding it.
  */
 export async function discoverBloxesOnLan(
-  opts: { hosts?: string[]; timeoutMs?: number; signal?: AbortSignal } = {},
+  opts: { hosts?: string[]; timeoutMs?: number; signal?: AbortSignal; attempts?: number } = {},
 ): Promise<DiscoveryOutcome> {
   const hosts = opts.hosts ?? LOCAL_HOST_CANDIDATES;
   const [results, lna] = await Promise.all([
     Promise.all(
-      hosts.map((host) => probeLocalHost(host, { timeoutMs: opts.timeoutMs, signal: opts.signal })),
+      hosts.map((host) =>
+        probeLocalHost(host, {
+          ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+          ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
+          ...(opts.attempts !== undefined ? { attempts: opts.attempts } : {}),
+        }),
+      ),
     ),
     // Read alongside the probes rather than before them: on a browser that prompts, asking first would report
     // the state from before the user answered.
