@@ -82,14 +82,48 @@ describe('probeLocalHost', () => {
   it('a name nobody claims is not found, not an error', async () => {
     // The common case by far: three of the four candidates never exist. It must stay quiet.
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
-    await expect(probeLocalHost('fxblox-rk1-9.local')).resolves.toBeNull();
+    await expect(probeLocalHost('fxblox-rk1-9.local', { retryDelayMs: 0 })).resolves.toBeNull();
+  });
+
+  it('retries a cold resolve that timed out, because the first try warms the cache', async () => {
+    // The behaviour that makes this feature work at all. The Blox registers its mDNS service with
+    // `service.TTL(2)` — a two-second record TTL against a norm of 120 — so the resolver cache is empty almost
+    // every time and nearly every lookup is a fresh multicast query racing Chrome's ~2.3 s patience. Measured
+    // on the live app: five consecutive probes failed, then one succeeded at 2704 ms and the next at 11 ms.
+    // The failed query is not wasted; it populates the cache, so attempt two lands immediately.
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({ ok: true, json: async () => relayBody() });
+    await expect(probeLocalHost('fxblox-rk1.local', { retryDelayMs: 0 })).resolves.toEqual({
+      host: 'fxblox-rk1.local',
+      peerId: BLOX,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry when the first attempt already answered', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => relayBody() });
+    await probeLocalHost('fxblox-rk1.local', { retryDelayMs: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops retrying when the caller aborts', async () => {
+    const controller = new AbortController();
+    fetchMock.mockImplementation(async () => {
+      controller.abort();
+      throw new TypeError('Failed to fetch');
+    });
+    await expect(
+      probeLocalHost('fxblox-rk1.local', { signal: controller.signal, retryDelayMs: 0 }),
+    ).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('a host that answers but is not a Blox is not found', async () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({ hello: 'world' }) });
-    await expect(probeLocalHost('printer.local')).resolves.toBeNull();
+    await expect(probeLocalHost('printer.local', { retryDelayMs: 0 })).resolves.toBeNull();
     fetchMock.mockResolvedValue({ ok: false, json: async () => ({}) });
-    await expect(probeLocalHost('printer.local')).resolves.toBeNull();
+    await expect(probeLocalHost('printer.local', { retryDelayMs: 0 })).resolves.toBeNull();
   });
 
   it('gives up rather than hanging the scan', async () => {
@@ -99,7 +133,7 @@ describe('probeLocalHost', () => {
           init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
         }),
     );
-    await expect(probeLocalHost('slow.local', { timeoutMs: 10 })).resolves.toBeNull();
+    await expect(probeLocalHost('slow.local', { timeoutMs: 10, retryDelayMs: 0 })).resolves.toBeNull();
   });
 });
 
@@ -119,7 +153,7 @@ describe('discoverBloxesOnLan', () => {
         ? { ok: true, json: async () => relayBody() }
         : Promise.reject(new TypeError('Failed to fetch')),
     );
-    const outcome = await discoverBloxesOnLan();
+    const outcome = await discoverBloxesOnLan({ attempts: 1 });
     expect(outcome.found).toEqual([{ host: 'fxblox-rk1.local', peerId: BLOX }]);
     expect(outcome.failure).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(LOCAL_HOST_CANDIDATES.length);
@@ -128,7 +162,7 @@ describe('discoverBloxesOnLan', () => {
   it('dedupes one device answering to two names', async () => {
     // A renamed host can still answer its old name; adding the same Blox twice is worse than missing it.
     fetchMock.mockResolvedValue({ ok: true, json: async () => relayBody() });
-    const { found } = await discoverBloxesOnLan({ hosts: ['a.local', 'b.local'] });
+    const { found } = await discoverBloxesOnLan({ hosts: ['a.local', 'b.local'], attempts: 1 });
     expect(found).toHaveLength(1);
   });
 
@@ -138,13 +172,13 @@ describe('discoverBloxesOnLan', () => {
       ok: true,
       json: async () => relayBody(url.includes('a.local') ? BLOX : other),
     }));
-    const { found } = await discoverBloxesOnLan({ hosts: ['a.local', 'b.local'] });
+    const { found } = await discoverBloxesOnLan({ hosts: ['a.local', 'b.local'], attempts: 1 });
     expect(found.map((b) => b.peerId).sort()).toEqual([BLOX, other].sort());
   });
 
   it('an empty network is an empty list, never a throw', async () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
-    const outcome = await discoverBloxesOnLan();
+    const outcome = await discoverBloxesOnLan({ attempts: 1 });
     expect(outcome.found).toEqual([]);
     expect(outcome.failure).toBe('not-found');
   });
