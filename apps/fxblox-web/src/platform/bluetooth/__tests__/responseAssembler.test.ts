@@ -121,3 +121,33 @@ describe('ResponseAssembler.writeToBLEAndWaitForResponse over a BleTransport', (
     expect(t.subscribers.size).toBe(0);
   });
 });
+
+describe('a chunked reply that did not survive the trip', () => {
+  test('rejects instead of resolving with rubble', async () => {
+    // The Blox builds every chunked reply with json.dumps and splits the string, so a reassembly that does not
+    // parse means frames were lost or truncated on the way. This used to resolve with the raw string: the log
+    // screen then did `res.docker ?? {}` on a string, rendered its two section headers with nothing under them,
+    // and reported no error at all. A silent wrong answer is worse than a loud failure.
+    const t = new FakeBleTransport();
+    t.onWrite = async (_b, tr) => {
+      tr.emitFrame({ type: 'ble_header', chunks: 2, total_length: 40 });
+      tr.emitFrame({ type: 'ble_chunk', index: 1, data: '{"docker":{"fula_go":"a' });
+      tr.emitFrame({ type: 'ble_chunk', index: 2, data: 'bc"' }); // truncated: the join cannot parse
+    };
+    await expect(
+      new ResponseAssembler(t).writeToBLEAndWaitForResponse('logs {}', t.id),
+    ).rejects.toThrow(/did not survive the trip/);
+  });
+
+  test('a complete chunked reply still resolves normally', async () => {
+    const t = new FakeBleTransport();
+    t.onWrite = async (_b, tr) => {
+      tr.emitFrame({ type: 'ble_header', chunks: 2, total_length: 30 });
+      tr.emitFrame({ type: 'ble_chunk', index: 1, data: '{"docker":{"fula_go":' });
+      tr.emitFrame({ type: 'ble_chunk', index: 2, data: '"ok"}}' });
+    };
+    await expect(
+      new ResponseAssembler(t).writeToBLEAndWaitForResponse('logs {}', t.id),
+    ).resolves.toEqual({ docker: { fula_go: 'ok' } });
+  });
+});
