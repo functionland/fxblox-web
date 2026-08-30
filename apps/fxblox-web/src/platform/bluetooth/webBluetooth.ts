@@ -67,6 +67,45 @@ export interface BleSessionOptions {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/**
+ * Raised when the Blox accepts a connection but will not let a browser subscribe for replies.
+ *
+ * Measured against a live Blox from Chrome 151, isolating each GATT step: `connect`, `getPrimaryService`,
+ * `getCharacteristic` and `writeValueWithResponse` all succeed, and `startNotifications()` on the command
+ * characteristic fails with `NotSupportedError` — four consecutive attempts, identically, so not a race. The
+ * broadcast characteristic on the same service, in the same connection, subscribes fine.
+ *
+ * The difference between them is that the command characteristic hand-declares a `2902` descriptor, and BlueZ
+ * already creates and manages the CCCD for any notify characteristic. `startNotifications()` IS a CCCD write,
+ * and it hits the duplicate. Filed as fula-ota#91.
+ *
+ * It matters because replies only ever arrive on that characteristic, so a browser that cannot subscribe there
+ * cannot receive anything: writes appear to succeed and every command then times out. Saying so is the whole
+ * value of this class — the alternative is a spinner, then an empty panel, then a generic GATT error that
+ * names nothing.
+ */
+export class BleSubscribeUnsupportedError extends Error {
+  override readonly cause?: unknown;
+  constructor(cause?: unknown) {
+    super(
+      'This Blox will not let a browser subscribe for replies, so its answers never arrive. ' +
+        'Its firmware needs the fix in fula-ota#91. Bluetooth works from the mobile app meanwhile.',
+    );
+    this.name = 'BleSubscribeUnsupportedError';
+    if (cause !== undefined) this.cause = cause;
+    Object.setPrototypeOf(this, BleSubscribeUnsupportedError.prototype);
+  }
+}
+
+/**
+ * `NotSupportedError` from `startNotifications()` is the firmware defect above; anything else is passed through
+ * untouched, because inventing a diagnosis for an unknown failure is how the wrong thing gets fixed.
+ */
+function asSubscribeError(e: unknown): unknown {
+  const name = (e as { name?: string } | null)?.name;
+  return name === 'NotSupportedError' ? new BleSubscribeUnsupportedError(e) : e;
+}
+
 function bluetoothApi(): Bluetooth | undefined {
   if (typeof navigator === 'undefined') return undefined;
   return (navigator as Navigator & { bluetooth?: Bluetooth }).bluetooth;
@@ -403,7 +442,11 @@ export class BleSession implements BleTransport {
       const characteristic = await this.ensureCharacteristic(ref);
       if (!this.notifying.has(key)) {
         const epoch = this.connectionEpoch;
-        await characteristic.startNotifications();
+        try {
+          await characteristic.startNotifications();
+        } catch (e) {
+          throw asSubscribeError(e);
+        }
         // Only record it if the connection we enabled it on is still the current one — a disconnect during
         // that await already cleared the set, and re-adding here would make the next subscribe() skip
         // enabling notifications on the NEW connection.
