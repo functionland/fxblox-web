@@ -69,6 +69,16 @@ describe('probeLocalHost', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(`http://fxblox-rk1.local:${BLOX_AI_PORT}/diag/relay`);
   });
 
+  it('asserts the target address space, or Chrome has nothing to prompt about', async () => {
+    // The regression that made this useless on a phone. Without `targetAddressSpace: 'local'`, a request to the
+    // local network is not prompted for — it is simply blocked. The first version of this file used a bare
+    // fetch and only worked on a browser profile that had already been granted the permission by earlier
+    // testing, which is indistinguishable from working until you try a device that has not.
+    fetchMock.mockResolvedValue({ ok: true, json: async () => relayBody() });
+    await probeLocalHost('fxblox-rk1.local');
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ targetAddressSpace: 'local' });
+  });
+
   it('a name nobody claims is not found, not an error', async () => {
     // The common case by far: three of the four candidates never exist. It must stay quiet.
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
@@ -109,14 +119,16 @@ describe('discoverBloxesOnLan', () => {
         ? { ok: true, json: async () => relayBody() }
         : Promise.reject(new TypeError('Failed to fetch')),
     );
-    await expect(discoverBloxesOnLan()).resolves.toEqual([{ host: 'fxblox-rk1.local', peerId: BLOX }]);
+    const outcome = await discoverBloxesOnLan();
+    expect(outcome.found).toEqual([{ host: 'fxblox-rk1.local', peerId: BLOX }]);
+    expect(outcome.failure).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(LOCAL_HOST_CANDIDATES.length);
   });
 
   it('dedupes one device answering to two names', async () => {
     // A renamed host can still answer its old name; adding the same Blox twice is worse than missing it.
     fetchMock.mockResolvedValue({ ok: true, json: async () => relayBody() });
-    const found = await discoverBloxesOnLan({ hosts: ['a.local', 'b.local'] });
+    const { found } = await discoverBloxesOnLan({ hosts: ['a.local', 'b.local'] });
     expect(found).toHaveLength(1);
   });
 
@@ -126,12 +138,14 @@ describe('discoverBloxesOnLan', () => {
       ok: true,
       json: async () => relayBody(url.includes('a.local') ? BLOX : other),
     }));
-    const found = await discoverBloxesOnLan({ hosts: ['a.local', 'b.local'] });
+    const { found } = await discoverBloxesOnLan({ hosts: ['a.local', 'b.local'] });
     expect(found.map((b) => b.peerId).sort()).toEqual([BLOX, other].sort());
   });
 
   it('an empty network is an empty list, never a throw', async () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
-    await expect(discoverBloxesOnLan()).resolves.toEqual([]);
+    const outcome = await discoverBloxesOnLan();
+    expect(outcome.found).toEqual([]);
+    expect(outcome.failure).toBe('not-found');
   });
 });
