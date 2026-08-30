@@ -315,7 +315,26 @@ export class ResponseAssembler implements BleCommandWriter {
           try {
             finalResponse = JSON.parse(completeData);
           } catch {
-            finalResponse = completeData;
+            // A chunked reply is ALWAYS JSON — the Blox builds it with `json.dumps` and splits the string. So
+            // if the reassembly does not parse, chunks were lost or truncated in transit, and what we hold is
+            // rubble rather than an answer.
+            //
+            // This used to resolve with the raw string. Nothing threw, and the caller got a string where it
+            // expected an object: `formatLogResponse` does `res.docker ?? {}`, which on a string is undefined,
+            // so the log screen rendered its two section headers with nothing under them and reported no
+            // error at all. A silent wrong answer is worse than a loud failure — especially here, where the
+            // fix is to retry or ask for less.
+            const err = new BleFrameError(
+              `The Blox's reply did not survive the trip: ${this.expectedChunks} chunks arrived but the ` +
+                `${completeData.length} bytes they carry do not parse as JSON. Replies are sent as ` +
+                `unacknowledged notifications, so a large one can lose or truncate frames — asking for less ` +
+                `at a time is the usual remedy.`,
+              completeData,
+            );
+            console.error(err.message);
+            this.commandReject?.(err);
+            this.cleanupCommand();
+            return null;
           }
 
           if (this.resolveResponse) {
