@@ -18,7 +18,25 @@
  * device. The Blox's own peer id is the LAST `/p2p/` component of a circuit address (the first is the relay's).
  * Port 3500, which serves the full `/properties`, binds the hotspot interface and is NOT reachable over the LAN
  * — that is exactly why the old scan found nothing.
+ *
+ * ## Local Network Access is not optional
+ *
+ * Requests go through `buildLanRequest`, which asserts `targetAddressSpace: 'local'`. Chrome gates a page's
+ * access to the local network on the TARGET, and a request that does not assert its target address space gives
+ * Chrome nothing to prompt about — it is simply blocked. The first version of this file used a bare `fetch`,
+ * which worked on the machine it was written on for the worst possible reason: that browser profile had already
+ * been granted the permission during earlier hotspot testing (`permissions.query` confirmed `granted`). On any
+ * device that had never granted it — a phone, say — every probe failed instantly and the screen reported
+ * "nothing found", which is a guess dressed up as a fact.
+ *
+ * Hence `DiscoveryOutcome`: a failed scan says WHICH failure it was, so a blocked permission can never again be
+ * mistaken for an absent device.
  */
+import {
+  buildLanRequest,
+  lnaPermissionState,
+  type LnaPermissionState,
+} from '@/platform/lanHttp';
 import { normalizeBloxPeerId } from '@/utils/bloxPeerId';
 
 /** blox-ai. The only Blox HTTP port reachable over the LAN, and it already sends CORS for this origin. */
@@ -71,6 +89,11 @@ export function peerIdFromRelayDiag(body: unknown): string | null {
   return null;
 }
 
+/** The URL a probe hits — exported so a test can assert the address-space assertion rides along. */
+export function probeUrl(host: string): string {
+  return `http://${host}:${BLOX_AI_PORT}/diag/relay`;
+}
+
 /** Ask one candidate name whether it is a Blox, and which one. Never throws. */
 export async function probeLocalHost(
   host: string,
@@ -81,16 +104,16 @@ export async function probeLocalHost(
   const onOuterAbort = () => controller.abort();
   opts.signal?.addEventListener('abort', onOuterAbort);
   try {
-    const res = await fetch(`http://${host}:${BLOX_AI_PORT}/diag/relay`, {
-      signal: controller.signal,
-      cache: 'no-store',
-      credentials: 'omit',
-    });
+    // buildLanRequest is what adds `targetAddressSpace: 'local'`. Without it Chrome has nothing to prompt
+    // about and blocks the request outright — see the file header.
+    const built = buildLanRequest(probeUrl(host));
+    const res = await fetch(built.url, { ...built.init, signal: controller.signal });
     if (!res.ok) return null;
     const peerId = peerIdFromRelayDiag(await res.json());
     return peerId ? { host, peerId } : null;
   } catch {
-    // A name nobody claims, a host that is not a Blox, a blocked local-network request — all "not found".
+    // A name nobody claims, a host that is not a Blox, a blocked local-network request. Which one it was is
+    // decided once for the whole scan in `discoverBloxesOnLan`, not guessed at per candidate.
     return null;
   } finally {
     clearTimeout(timer);
@@ -99,21 +122,46 @@ export async function probeLocalHost(
 }
 
 /**
- * Probe every candidate at once and return the Bloxes that answered, deduped by peer id.
+ * Why a scan came back empty.
  *
- * Deduped because two names can resolve to one device (a renamed host that still answers to both), and adding
- * the same Blox twice under different names would be worse than not finding it.
+ * `blocked` is the one that matters: the browser refused to let the page touch the local network at all, so
+ * nothing was ever asked. Reporting that as "no Blox found" is how a permission problem gets mistaken for a
+ * hardware problem, and it sends the user looking in the wrong place.
+ */
+export type DiscoveryFailure = 'blocked' | 'not-found';
+
+export interface DiscoveryOutcome {
+  found: LanBlox[];
+  /** Absent when something was found. */
+  failure?: DiscoveryFailure;
+  /** Chrome's Local Network Access state at the time of the scan; `unsupported` on browsers without it. */
+  lna: LnaPermissionState;
+}
+
+/**
+ * Probe every candidate at once and report what answered — and, if nothing did, why.
+ *
+ * Deduped by peer id because two names can resolve to one device (a renamed host that still answers to both),
+ * and adding the same Blox twice under different names would be worse than not finding it.
  */
 export async function discoverBloxesOnLan(
   opts: { hosts?: string[]; timeoutMs?: number; signal?: AbortSignal } = {},
-): Promise<LanBlox[]> {
+): Promise<DiscoveryOutcome> {
   const hosts = opts.hosts ?? LOCAL_HOST_CANDIDATES;
-  const found = await Promise.all(
-    hosts.map((host) => probeLocalHost(host, { timeoutMs: opts.timeoutMs, signal: opts.signal })),
-  );
+  const [results, lna] = await Promise.all([
+    Promise.all(
+      hosts.map((host) => probeLocalHost(host, { timeoutMs: opts.timeoutMs, signal: opts.signal })),
+    ),
+    // Read alongside the probes rather than before them: on a browser that prompts, asking first would report
+    // the state from before the user answered.
+    lnaPermissionState(),
+  ]);
+
   const byPeerId = new Map<string, LanBlox>();
-  for (const blox of found) {
+  for (const blox of results) {
     if (blox && !byPeerId.has(blox.peerId)) byPeerId.set(blox.peerId, blox);
   }
-  return [...byPeerId.values()];
+  const found = [...byPeerId.values()];
+  if (found.length > 0) return { found, lna };
+  return { found, failure: lna === 'denied' ? 'blocked' : 'not-found', lna };
 }

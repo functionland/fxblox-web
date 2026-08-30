@@ -21,7 +21,10 @@ vi.mock('@/utils/helper', async (importOriginal) => {
 });
 vi.mock('@/services/lanDiscovery', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/lanDiscovery')>();
-  return { ...actual, discoverBloxesOnLan: vi.fn(async () => []) };
+  return {
+    ...actual,
+    discoverBloxesOnLan: vi.fn(async () => ({ found: [], failure: 'not-found', lna: 'granted' })),
+  };
 });
 vi.mock('@/platform/bluetooth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/bluetooth')>();
@@ -79,7 +82,7 @@ describe('ConnectToExistingBlox', () => {
     propsMock.mockReset();
     initFulaMock.mockReset();
     discoverMock.mockReset();
-    discoverMock.mockResolvedValue([]);
+    discoverMock.mockResolvedValue({ found: [], failure: 'not-found', lna: 'granted' });
     lanIpCache.clear();
     resetBleMockState(ble.state!);
     BleRegistry._resetForTests();
@@ -90,7 +93,7 @@ describe('ConnectToExistingBlox', () => {
     // fresh install it can only come back empty. The name probe is what finds a device never seen before; all
     // it can learn is the peer id, which is exactly what the manual-entry route takes.
     propsMock.mockRejectedValue(new Error('nothing on the hotspot'));
-    discoverMock.mockResolvedValue([{ host: 'fxblox-rk1.local', peerId: TEST_BLOX_PEER_ID }]);
+    discoverMock.mockResolvedValue({ found: [{ host: 'fxblox-rk1.local', peerId: TEST_BLOX_PEER_ID }], lna: 'granted' });
     const { router } = await renderAndScan();
 
     expect(await screen.findByTestId(`lan-found-${TEST_BLOX_PEER_ID}`)).toHaveTextContent(
@@ -106,12 +109,27 @@ describe('ConnectToExistingBlox', () => {
     );
   });
 
+  it('says the browser blocked the network rather than blaming the Blox', async () => {
+    // A refused Local Network Access permission and an absent Blox are different facts, and the app used to
+    // report both as "nothing answered on this network" — sending the user to check hardware for what is a
+    // browser setting. This is the likely shape of the Android report: on a device that never granted the
+    // permission, every probe fails instantly and silently.
+    propsMock.mockRejectedValue(new Error('nothing on the hotspot'));
+    discoverMock.mockResolvedValue({ found: [], failure: 'blocked', lna: 'denied' });
+    await renderAndScan();
+
+    expect(await screen.findByTestId('lan-blocked')).toHaveTextContent(
+      /browser is blocking access to this network/i,
+    );
+    expect(screen.queryByTestId('no-devices')).toBeNull();
+  });
+
   it('marks a Blox it already has instead of claiming nothing answered', async () => {
     // The bug this pins, caught testing the deployed build against real hardware: results were filtered to
     // Bloxs the app lacked, so finding your only Blox — already added — rendered "Nothing answered on this
     // network". It had answered, in 3 seconds.
     propsMock.mockRejectedValue(new Error('nothing on the hotspot'));
-    discoverMock.mockResolvedValue([{ host: 'fxblox-rk1.local', peerId: TEST_BLOX_PEER_ID }]);
+    discoverMock.mockResolvedValue({ found: [{ host: 'fxblox-rk1.local', peerId: TEST_BLOX_PEER_ID }], lna: 'granted' });
     useBloxsStore.setState({
       bloxs: { [TEST_BLOX_PEER_ID]: { peerId: TEST_BLOX_PEER_ID, name: 'Blox Unit #1' } },
     });

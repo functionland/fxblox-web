@@ -115,6 +115,7 @@
       "peerIdHint": "请粘贴它的 Blox Peer ID — 在手机应用的「用户」标签页中的「Bloxs' PeerId」下可一键复制。此方式在任何网络下都可用，Blox 无需与本设备在同一网络。",
       "invalidPeerId": "这看起来不是 Blox Peer ID。它以 12D3KooW 开头，共 52 个字符。",
       "addThisBlox": "添加此 Blox",
+      "lanBlocked": "您的浏览器阻止了对本网络的访问，因此无法进行搜索。请在浏览器设置中允许本站访问本地网络后重试 — 或使用蓝牙，或通过节点 ID 添加 Blox。",
       "alreadyAdded": "已添加",
       "bloxPeerId": "Blox 节点 ID",
       "foundOnNetwork": "在您的网络中找到",

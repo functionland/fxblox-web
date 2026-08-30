@@ -146,6 +146,8 @@ export default function ConnectToExistingBlox() {
   const [scanning, setScanning] = useState(false);
   /** Bloxes found by resolving a .local name — peer id only, so they render in their own section. */
   const [lanFound, setLanFound] = useState<LanBlox[]>([]);
+  /** The browser refused the local network outright — a different fact from `no Blox here`. */
+  const [lanBlocked, setLanBlocked] = useState(false);
   /** "Nothing found" is only true once something has looked. Nothing scans on arrival any more. */
   const [hasScanned, setHasScanned] = useState(false);
   const [addingBloxs, setAddingBloxs] = useState(false);
@@ -205,6 +207,7 @@ export default function ConnectToExistingBlox() {
     setScanning(true);
     setData([]);
     setLanFound([]);
+    setLanBlocked(false);
     uniqueDevicesRef.current = new Map();
     try {
       const candidates = await collectScanCandidates(Object.keys(bloxs));
@@ -224,13 +227,17 @@ export default function ConnectToExistingBlox() {
         // a Blox the app has never seen, by resolving its `.local` name. See services/lanDiscovery.ts.
         (async () => {
           try {
-            const found = await discoverBloxesOnLan();
+            const outcome = await discoverBloxesOnLan();
             if (scanGeneration.current !== generation) return;
-            console.log(`[Scan] mDNS name probe found ${found.length}`, found);
+            console.log(
+              `[Scan] mDNS name probe found ${outcome.found.length} (lna=${outcome.lna}${outcome.failure ? `, ${outcome.failure}` : ''})`,
+              outcome.found,
+            );
             // Deliberately NOT filtered to Bloxes the app lacks. Hiding the ones it already has meant that
             // finding your only Blox, already added, rendered "Nothing answered on this network" — which is
             // false, and is the single most confusing thing this screen could say. They are shown and marked.
-            setLanFound(found);
+            setLanFound(outcome.found);
+            setLanBlocked(outcome.failure === 'blocked');
           } catch (error) {
             console.log('[Scan] mDNS name probe failed', error);
           }
@@ -602,8 +609,18 @@ export default function ConnectToExistingBlox() {
           </FxBox>
         )}
         {!scanning && hasScanned && data.length === 0 && lanFound.length === 0 && (
-          <FxText variant="bodySmallRegular" color="content2" testID="no-devices">
-            {t('setup.connectToExistingBlox.noDevices')}
+          <FxText
+            variant="bodySmallRegular"
+            color={lanBlocked ? 'warningBase' : 'content2'}
+            testID={lanBlocked ? 'lan-blocked' : 'no-devices'}
+          >
+            {/*
+              A refused local-network permission is not the same fact as an absent Blox, and saying the second
+              when the first is true sends the user to check their hardware for a browser setting.
+            */}
+            {lanBlocked
+              ? t('setup.connectToExistingBlox.lanBlocked')
+              : t('setup.connectToExistingBlox.noDevices')}
           </FxText>
         )}
 
