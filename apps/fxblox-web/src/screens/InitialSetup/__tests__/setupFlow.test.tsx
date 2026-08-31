@@ -126,11 +126,11 @@ describe('setup flow navigation order', () => {
     expect(await screen.findByTestId('did')).toHaveTextContent('did:key:zFlow');
     await user.click(screen.getByTestId('setup-continue')); // LinkPassword (existing identity)
     await at('/setup/connect-blox', 'connect-blox');
-    // ConnectToBlox asks one question at a time: Bluetooth, then the LAN address, then the hotspot. There is
-    // no Web Bluetooth in jsdom, so the first button fails through to the LAN step; "I don't know the
-    // address" reaches the hotspot check, which the mocked lanFetch answers.
-    await user.click(screen.getByTestId('connect-ble'));
+    // ConnectToBlox asks one question at a time, easiest first: the network cable, then Bluetooth, then the
+    // hotspot. "I don't have an adapter" moves past the cable step, and there is no Web Bluetooth in jsdom, so
+    // that button falls through to the hotspot check — which the mocked lanFetch answers.
     await user.click(await screen.findByTestId('lan-skip'));
+    await user.click(await screen.findByTestId('connect-ble'));
     await user.click(await screen.findByTestId('hotspot-check'));
     await at('/setup/set-authorizer', 'set-authorizer');
     await screen.findByTestId('blox-peer-id-value'); // auto exchange done
@@ -177,8 +177,9 @@ describe('setup flow navigation order', () => {
     const user = userEvent.setup();
     const { router } = await renderSetupAt('/setup/connect-blox');
     await screen.findByTestId('setup-connect-blox');
-    // No Web Bluetooth in jsdom, so the first button falls through to the LAN step.
-    await user.click(screen.getByTestId('connect-ble'));
+    // The address field is the second thing to try, so a search has to come up empty first. Nothing answers
+    // the probes in jsdom, which is exactly that outcome.
+    await user.click(screen.getByTestId('lan-search'));
     await user.type(await screen.findByTestId('lan-ip-input'), '192.168.1.50');
     await user.click(screen.getByTestId('lan-connect'));
 

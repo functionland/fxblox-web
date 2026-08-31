@@ -24,6 +24,7 @@ import { SetupScreen } from '@/components/setup/SetupScreen';
 import { useAppNavigate } from '@/hooks/useAppNavigate';
 import { useHotspotReachable } from '@/hooks/useHotspotReachable';
 import { useLogger } from '@/hooks/useLogger';
+import { discoverUnownedBloxes } from '@/services/setupDiscovery';
 import { EConnectionStatus } from '@/models';
 import { ipIsPrivateLan } from '@/utils/ipIsPrivateLan';
 import { isLanHttpError, lanFetch } from '@/platform/lanHttp';
@@ -96,19 +97,24 @@ export default function ConnectToBlox() {
   const reachability = useHotspotReachable({ enabled: pollingEnabled });
 
   /**
-   * One question at a time, in the order that needs least from the user.
+   * One question at a time, easiest route first.
    *
-   *   bluetooth  no cables, no addresses, no network — just Chrome's device chooser.
-   *   lan        only if Bluetooth failed. Needs the Blox on the network AND its address, so it is offered
-   *              rather than assumed; the user can say "I don't know it" and move on.
+   *   lan        plug an ethernet adapter in and press Search. go-fula opens the setup API on the LAN for as
+   *              long as the box is unowned, and keeps those listeners in step with the interfaces, so a cable
+   *              plugged in AFTER boot is picked up too. Nothing to type, nothing to pair, and the browser
+   *              keeps its internet — which is why it leads.
+   *   bluetooth  when there is no adapter, or the search found nothing. Chrome's device chooser, no cables.
    *   hotspot    the always-works fallback: join the Blox's own Wi-Fi. Costs the user their internet for a
-   *              minute, which is why it is last rather than first.
+   *              minute, which is why it is last.
    */
-  const [stage, setStage] = useState<'bluetooth' | 'lan' | 'hotspot'>('bluetooth');
+  const [stage, setStage] = useState<'lan' | 'bluetooth' | 'hotspot'>('lan');
   const [lanIp, setLanIp] = useState('');
   const [checkingLan, setCheckingLan] = useState(false);
   const [lanIpRejected, setLanIpRejected] = useState(false);
   const [lanNotFound, setLanNotFound] = useState(false);
+  const [searching, setSearching] = useState(false);
+  /** Shown once a search came back empty: the manual-address field is the next thing worth trying. */
+  const [searchFailed, setSearchFailed] = useState(false);
 
   const handleNext = useCallback(() => {
     void navigate(paths.setup.setAuthorizer());
@@ -148,6 +154,36 @@ export default function ConnectToBlox() {
     }
   };
 
+  /**
+   * Search the network for a Blox that has not been set up yet.
+   *
+   * Its own button press, like every other LAN call here: Chrome's local-network prompt needs a gesture, and a
+   * scan fired on mount would ask for a permission the browser then refuses to show.
+   */
+  const searchNetwork = async () => {
+    setSearching(true);
+    setSearchFailed(false);
+    setLanNotFound(false);
+    setLanError(null);
+    setConnectionStatus(EConnectionStatus.connecting);
+    try {
+      const outcome = await discoverUnownedBloxes();
+      const first = outcome.found[0];
+      if (first) {
+        setConnectionStatus(EConnectionStatus.connected);
+        void navigate(paths.setup.setAuthorizer({ ip: first.host }));
+        return;
+      }
+      setConnectionStatus(EConnectionStatus.lanFailed);
+      // A refused permission is not an absent Blox, and saying so sends the user after a cable fault they do
+      // not have. The error card explains the permission; everything else is an honest "not on this network".
+      if (outcome.failure === 'blocked') setLanError('lna-denied');
+      else setSearchFailed(true);
+    } finally {
+      setSearching(false);
+    }
+  };
+
   const connectViaBLE = async () => {
     console.log('started connectToBox (BLE)');
     setConnectionStatus(EConnectionStatus.bleConnecting);
@@ -159,7 +195,8 @@ export default function ConnectToBlox() {
         return;
       }
       setConnectionStatus(EConnectionStatus.bleFailed);
-      setStage('lan');
+      // The LAN step already had its turn before this one, so the next thing to offer is the hotspot.
+      setStage('hotspot');
       logger.logError('connectViaBLE', error);
       queueToast({
         type: 'error',
@@ -184,7 +221,7 @@ export default function ConnectToBlox() {
       logger.logError('connectToBox:bleProperties', error);
     }
     setConnectionStatus(EConnectionStatus.failed);
-    setStage('lan');
+    setStage('hotspot');
     queueToast({
       title: t('setup.connectToBlox.connectionError'),
       message: t('setup.connectToBlox.connectionErrorMessage'),
@@ -272,9 +309,11 @@ export default function ConnectToBlox() {
           The intro promises Bluetooth and says other ways will follow. Once one of those other ways is on
           screen it is describing a step the user has already left, so it goes with the stage it belongs to.
         */}
-        {stage === 'bluetooth' && (
+        {stage !== 'hotspot' && (
           <FxText variant="bodySmallRegular" color="content2" textAlign="center">
-            {t('setup.connectToBlox.intro')}
+            {stage === 'lan'
+              ? t('setup.connectToBlox.lanIntro')
+              : t('setup.connectToBlox.intro')}
           </FxText>
         )}
         <FxTower
@@ -319,7 +358,7 @@ export default function ConnectToBlox() {
               />
             )}
 
-            {/* Step 2 — offered only after Bluetooth failed. */}
+            {/* Step 1 — the easiest route: a cable and one button. */}
             {stage === 'lan' && (
               <FxBox
                 gap="8"
@@ -334,50 +373,84 @@ export default function ConnectToBlox() {
                 <FxText variant="bodySmallRegular" color="content2">
                   {t('setup.connectToBlox.lan.body')}
                 </FxText>
-                <FxTextInput
-                  value={lanIp}
-                  onChangeText={(v) => {
-                    setLanIp(v);
-                    setLanIpRejected(false);
-                    setLanNotFound(false);
-                  }}
-                  placeholder={t('setup.connectToBlox.lan.placeholder')}
-                  aria-label={t('setup.connectToBlox.lan.title')}
-                  inputMode="numeric"
-                  testID="lan-ip-input"
-                />
-                {lanIpRejected && (
-                  <FxText variant="bodyXSRegular" color="errorBase" testID="lan-ip-rejected">
-                    {t('setup.connectToBlox.lan.badAddress')}
-                  </FxText>
-                )}
-                {lanNotFound && (
-                  <FxText variant="bodyXSRegular" color="content2" testID="lan-not-found">
-                    {t('setup.connectToBlox.lan.notFound')}
-                  </FxText>
-                )}
                 <FxButton
-                  loading={checkingLan}
-                  disabled={bleConnecting || lanIp.trim().length === 0}
-                  onPress={() => void connectViaLan()}
-                  testID="lan-connect"
+                  loading={searching}
+                  disabled={bleConnecting || checkingLan}
+                  onPress={() => void searchNetwork()}
+                  testID="lan-search"
                 >
-                  {t('setup.connectToBlox.lan.connect')}
+                  {t('setup.connectToBlox.lan.search')}
                 </FxButton>
+                {searchFailed && (
+                  <FxText variant="bodyXSRegular" color="content2" testID="lan-search-failed">
+                    {t('setup.connectToBlox.lan.searchFailed')}
+                  </FxText>
+                )}
+                {/*
+                  The address field is the second thing to try, not the first — it only helps someone who can
+                  read their router's device list, so it stays out of the way until the search has come up empty.
+                */}
+                {searchFailed && (
+                  <FxText variant="bodyXSRegular" color="content3">
+                    {t('setup.connectToBlox.lan.manualHint')}
+                  </FxText>
+                )}
+                {searchFailed && (
+                  <>
+                    <FxTextInput
+                      value={lanIp}
+                      onChangeText={(v) => {
+                        setLanIp(v);
+                        setLanIpRejected(false);
+                        setLanNotFound(false);
+                      }}
+                      placeholder={t('setup.connectToBlox.lan.placeholder')}
+                      aria-label={t('setup.connectToBlox.lan.manualHint')}
+                      inputMode="numeric"
+                      testID="lan-ip-input"
+                    />
+                    {lanIpRejected && (
+                      <FxText variant="bodyXSRegular" color="errorBase" testID="lan-ip-rejected">
+                        {t('setup.connectToBlox.lan.badAddress')}
+                      </FxText>
+                    )}
+                    {lanNotFound && (
+                      <FxText variant="bodyXSRegular" color="content2" testID="lan-not-found">
+                        {t('setup.connectToBlox.lan.notFound')}
+                      </FxText>
+                    )}
+                    <FxButton
+                      variant="inverted"
+                      loading={checkingLan}
+                      disabled={bleConnecting || lanIp.trim().length === 0}
+                      onPress={() => void connectViaLan()}
+                      testID="lan-connect"
+                    >
+                      {t('setup.connectToBlox.lan.connect')}
+                    </FxButton>
+                  </>
+                )}
+                {/*
+                  The way out, for someone with no adapter — and, after a failed search, the way on. Both land
+                  on Bluetooth, which is the next-easiest route and the one that needs no network at all.
+                */}
                 <FxButton
                   variant="inverted"
                   size="small"
                   onPress={() => {
-                    // Leave the previous step's verdict behind. Carrying it forward pre-announces a hotspot
+                    // Leave the previous step's verdict behind. Carrying it forward pre-announces a Bluetooth
                     // failure the user has not had the chance to cause yet.
-                    setStage('hotspot');
+                    setStage('bluetooth');
                     setConnectionStatus(EConnectionStatus.notConnected);
                     setLanError(null);
                     setLanNotFound(false);
+                    setSearchFailed(false);
                   }}
                   testID="lan-skip"
                 >
-                  {t('setup.connectToBlox.lan.skip')}
+                  {searchFailed
+                    ? t('setup.connectToBlox.lan.useBluetooth')
+                    : t('setup.connectToBlox.lan.noAdapter')}
                 </FxButton>
               </FxBox>
             )}
@@ -437,18 +510,23 @@ export default function ConnectToBlox() {
             {t('connectToBlox.continue')}
           </FxButton>
         ) : (
-          <FxButton
-            variant={stage === 'bluetooth' ? 'defaults' : 'inverted'}
-            flex={1}
-            loading={bleConnecting}
-            disabled={checkingHotspot || checkingLan}
-            onPress={() => void connectViaBLE()}
-            testID="connect-ble"
-          >
-            {stage === 'bluetooth'
-              ? t('setup.connectToBlox.connectViaBluetooth')
-              : t('setup.connectToBlox.retryBluetooth')}
-          </FxButton>
+          // Not on the LAN step: there the primary action is Search, inside the card, and a Bluetooth button
+          // beside it would put the two routes back on screen at once — the menu-of-choices this ladder exists
+          // to avoid. Bluetooth is one tap away via "I don't have an adapter".
+          stage !== 'lan' && (
+            <FxButton
+              variant={stage === 'bluetooth' ? 'defaults' : 'inverted'}
+              flex={1}
+              loading={bleConnecting}
+              disabled={checkingHotspot || checkingLan}
+              onPress={() => void connectViaBLE()}
+              testID="connect-ble"
+            >
+              {stage === 'bluetooth'
+                ? t('setup.connectToBlox.connectViaBluetooth')
+                : t('setup.connectToBlox.retryBluetooth')}
+            </FxButton>
+          )
         )}
       </SetupNav>
     </SetupScreen>
