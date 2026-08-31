@@ -123,8 +123,21 @@ export async function selectAiTransport(bloxPeerId: string, appPeerId: string, o
     hit = lanIpCache.findAuthorizedBlox(bloxPeerId, appPeerId, mdnsMaxAgeMs);
   }
 
+  // 5) Search this network directly. `refreshOnce` above only asks discovery `/find-box` for private `/ip4/`
+  //    entries, which needs fula-ota PR-D and returns nothing today — so before this tier existed, a browser
+  //    with no remembered address and no typed IP had literally nothing left to try and reported "cannot
+  //    reach your Blox" about a Blox on the same switch, one that the setup screen's own search finds in
+  //    seconds. This is that same search.
+  if (!hit && scanIfEmpty) {
+    const scanned = await qualifyLanScan(bloxPeerId, appPeerId, probeTimeoutMs);
+    if (scanned) return scanned;
+  }
+
   if (!hit) {
-    return { kind: 'ble', reason: 'no LAN candidate: no fresh record, no manual IP, no remembered address' };
+    return {
+      kind: 'ble',
+      reason: 'no LAN candidate: no fresh record, no manual IP, no remembered address, nothing on this network',
+    };
   }
 
   const ip = hit.service.txt?.ipAddress ?? hit.service.host ?? '';
@@ -140,6 +153,50 @@ export async function selectAiTransport(bloxPeerId: string, appPeerId: string, o
     return { kind: 'lan-http', httpClient: client, reason: `mDNS verified, /health 200 in ${probe.latencyMs}ms` };
   }
   return { kind: 'ble', reason: `LAN HTTP /health probe failed (latency=${probe.latencyMs}ms)` };
+}
+
+/** A `.local` name is local by definition; anything else has to be an RFC1918/link-local address. */
+export function hostIsLocal(host: string): boolean {
+  return host.toLowerCase().endsWith('.local') || ipIsPrivateLan(host);
+}
+
+/**
+ * Search this network for the Blox, the way the setup screen does.
+ *
+ * `discoverBloxesOnLan` probes candidate `.local` names AND sweeps the subnets this device is on, reading each
+ * answer's peer id from blox-ai's `/diag/relay`. That peer id is a STRONGER identity check than the `/health`
+ * probe the other tiers rely on — the address is only used if the box behind it says it is the one we mean, so
+ * a private address that points at a stranger on some other network is rejected before anything is sent to it.
+ *
+ * A found IPv4 address is written back to the cache, so the next session takes tier 3 and never pays for this
+ * scan again.
+ */
+async function qualifyLanScan(
+  bloxPeerId: string,
+  appPeerId: string,
+  probeTimeoutMs: number,
+): Promise<AiTransportChoice | null> {
+  let outcome;
+  try {
+    const { discoverBloxesOnLan } = await import('@/services/lanDiscovery');
+    outcome = await discoverBloxesOnLan();
+  } catch {
+    return null;
+  }
+  const match = outcome.found.find((blox) => blox.peerId === bloxPeerId);
+  if (!match || !hostIsLocal(match.host)) return null;
+  const client = new HttpAiClient(match.host, DEFAULT_BLOX_AI_PORT);
+  const probe = await client.health(probeTimeoutMs);
+  if (!probe.ok) return null;
+  // Only an address is worth remembering; a `.local` name would fail tier 3's RFC1918 gate on the way back in.
+  if (ipIsPrivateLan(match.host)) {
+    lanIpCache.noteLanIp({ ip: match.host, bloxPeerId, authorizer: appPeerId });
+  }
+  return {
+    kind: 'lan-http',
+    httpClient: client,
+    reason: `network scan found ${match.host}, peer id matched, /health 200 in ${probe.latencyMs}ms`,
+  };
 }
 
 function readBloxAiPortFromTxt(txt: Record<string, unknown> | undefined): number | undefined {
