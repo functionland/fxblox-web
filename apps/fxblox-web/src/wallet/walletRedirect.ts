@@ -132,44 +132,93 @@ const INERT_CAPTURE: RedirectCapture = {
 };
 
 /**
+ * The one installed patch, shared by every live capture.
+ *
+ * ## Why a singleton and not one wrapper per capture
+ *
+ * The previous version installed a fresh wrapper per call, each remembering whatever `window.open` happened to
+ * be at install time and restoring it only `if (window.open === patched)`. Two overlapping captures then
+ * corrupt each other: the second stores the FIRST PATCH as its "original", the first declines to restore
+ * because it is no longer on top, and the second puts the first patch back — permanently. `window.open` is
+ * left wrapped by a patch belonging to a finished request, silently swallowing every wallet deep link for the
+ * life of the page.
+ *
+ * That is reachable from the UI: `cancel()` sets the phase to `idle` synchronously, so the button flips back
+ * to Sign at once, and a retry inside `REDIRECT_GRACE_MS` overlaps the interceptor the cancelled attempt is
+ * still holding.
+ *
+ * One patch installed once, with the live captures behind it, removes the ordering problem entirely: whoever
+ * releases last uninstalls, and the stored original is always the browser's own `window.open`.
+ */
+interface LiveCapture {
+  captured: string | null;
+  passedThrough: boolean;
+}
+
+let installedPatch: Window['open'] | null = null;
+let browserOpen: Window['open'] | null = null;
+const liveCaptures = new Set<LiveCapture>();
+
+function install(): void {
+  if (installedPatch && window.open === installedPatch) return;
+  // Either nothing is installed, or something replaced our patch — in which case that replacement is what has
+  // to be handed back later, so adopt it as the original rather than restoring a stale reference.
+  browserOpen = window.open;
+  const patched = ((url?: string | URL, target?: string, features?: string): Window | null => {
+    const href = typeof url === 'string' ? url : url instanceof URL ? url.href : '';
+    if (href && isWalletRequestUrl(href)) {
+      for (const capture of liveCaptures) capture.captured = href;
+      return null;
+    }
+    for (const capture of liveCaptures) capture.passedThrough = true;
+    return (browserOpen as Window['open']).call(window, url, target, features);
+  }) as Window['open'];
+  installedPatch = patched;
+  window.open = patched;
+}
+
+function uninstall(): void {
+  if (liveCaptures.size > 0) return;
+  // Only hand back if nothing replaced us meanwhile — clobbering another patch would be worse than leaking
+  // this one, which swallows nothing once no capture is live.
+  if (installedPatch && window.open === installedPatch && browserOpen) window.open = browserOpen;
+  installedPatch = null;
+  browserOpen = null;
+}
+
+/**
  * Swallow WalletConnect's redirect and remember where it pointed, until `release()`.
  *
  * The library ignores `window.open`'s return value, so returning null costs it nothing — it believes it has
  * switched apps, and the page stays in front long enough to finish publishing.
+ *
+ * Safe to nest: overlapping captures share one patch and each sees every redirect while it is live.
  */
 export function captureAutoRedirect(): RedirectCapture {
   if (typeof window === 'undefined' || typeof window.open !== 'function') return INERT_CAPTURE;
 
-  // The original reference, not a bound copy, so `release()` puts back exactly what was there and repeated
-  // capture/release cycles do not stack wrappers.
-  const original = window.open;
-  let captured: string | null = null;
-  let passedThrough = false;
+  const state: LiveCapture = { captured: null, passedThrough: false };
+  liveCaptures.add(state);
+  install();
   let released = false;
 
-  const patched = ((url?: string | URL, target?: string, features?: string): Window | null => {
-    const href = typeof url === 'string' ? url : url instanceof URL ? url.href : '';
-    if (href && isWalletRequestUrl(href)) {
-      captured = href;
-      return null;
-    }
-    passedThrough = true;
-    return original.call(window, url, target, features);
-  }) as Window['open'];
-
-  window.open = patched;
-
   return {
-    captured: () => captured,
-    sawOpen: () => passedThrough,
+    captured: () => state.captured,
+    sawOpen: () => state.passedThrough,
     release: () => {
       if (released) return;
       released = true;
-      // Only hand back if nothing replaced it meanwhile — clobbering another patch would be worse than leaking
-      // this one, which is inert once `captured` is no longer read.
-      if (window.open === patched) window.open = original;
+      liveCaptures.delete(state);
+      uninstall();
     },
   };
+}
+
+/** Test seam: forget any installed patch without touching `window.open`. */
+export function __resetRedirectCaptureForTests(): void {
+  liveCaptures.clear();
+  installedPatch = null;
+  browserOpen = null;
 }
 
 /**

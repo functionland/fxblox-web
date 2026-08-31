@@ -1,19 +1,39 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useRelayWake, wakeRelay } from '../relayWake';
+import { useRelayWake, wakeRelay, WAKE_TIMEOUT_MS } from '../relayWake';
 
-function providerWithRelayer(state: { connected?: boolean; connecting?: boolean } = {}) {
-  const transportOpen = vi.fn(async () => undefined);
-  return {
-    transportOpen,
-    provider: {
-      client: {
-        core: {
-          relayer: { connected: false, connecting: false, ...state, transportOpen },
-        },
-      },
-    },
-  };
+interface RelayerState {
+  connected?: boolean;
+  connecting?: boolean;
+  /** Leave `transportOpen` pending for ever, the way a connect Android froze behaves. */
+  wedged?: boolean;
+  /** Flip `connected` to true once `transportOpen` resolves, the way a healthy dial behaves. */
+  opensSuccessfully?: boolean;
+  withRestart?: boolean;
+}
+
+function providerWithRelayer(state: RelayerState = {}) {
+  const {
+    connected = false,
+    connecting = false,
+    wedged = false,
+    opensSuccessfully = false,
+    withRestart = true,
+  } = state;
+  const relayer: Record<string, unknown> = { connected, connecting };
+  const transportOpen = vi.fn(() =>
+    wedged
+      ? new Promise<void>(() => undefined)
+      : Promise.resolve().then(() => {
+          if (opensSuccessfully) relayer.connected = true;
+        }),
+  );
+  const restartTransport = vi.fn(async () => {
+    relayer.connected = true;
+  });
+  relayer.transportOpen = transportOpen;
+  if (withRestart) relayer.restartTransport = restartTransport;
+  return { transportOpen, restartTransport, relayer, provider: { client: { core: { relayer } } } };
 }
 
 /** jsdom reports 'visible' by default; this flips it for the duration of one assertion. */
@@ -23,43 +43,70 @@ function setVisibility(value: DocumentVisibilityState) {
 
 afterEach(() => {
   setVisibility('visible');
+  vi.useRealTimers();
 });
 
 describe('wakeRelay', () => {
-  it('reconnects a socket that Android killed while the tab was backgrounded', () => {
-    const { provider, transportOpen } = providerWithRelayer({ connected: false });
-    wakeRelay(provider);
+  it('reconnects a socket that Android killed while the tab was backgrounded', async () => {
+    const { provider, transportOpen } = providerWithRelayer({ opensSuccessfully: true });
+    await wakeRelay(provider);
     expect(transportOpen).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves a live socket alone', () => {
+  it('leaves a live socket alone', async () => {
     const { provider, transportOpen } = providerWithRelayer({ connected: true });
-    wakeRelay(provider);
+    await wakeRelay(provider);
     expect(transportOpen).not.toHaveBeenCalled();
   });
 
-  it('does not race a connection attempt already in flight', () => {
-    const { provider, transportOpen } = providerWithRelayer({ connecting: true });
-    wakeRelay(provider);
-    expect(transportOpen).not.toHaveBeenCalled();
+  it('still wakes when the relayer claims to be connecting', async () => {
+    // `get connecting()` is true whenever `connectPromise !== undefined`, and a connect Android froze leaves
+    // that promise pending for ever. Guarding on it made the wake a no-op in the one case it exists for.
+    const { provider, transportOpen } = providerWithRelayer({ connecting: true, opensSuccessfully: true });
+    await wakeRelay(provider);
+    expect(transportOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('escalates to restartTransport when transportOpen is awaiting a frozen attempt', async () => {
+    vi.useFakeTimers();
+    const { provider, transportOpen, restartTransport, relayer } = providerWithRelayer({ wedged: true });
+    const done = wakeRelay(provider);
+    await vi.advanceTimersByTimeAsync(WAKE_TIMEOUT_MS + 1);
+    await done;
+    expect(transportOpen).toHaveBeenCalledTimes(1);
+    expect(restartTransport).toHaveBeenCalledTimes(1);
+    expect(relayer.connected).toBe(true);
+  });
+
+  it('does not escalate when transportOpen got the socket up', async () => {
+    const { provider, restartTransport } = providerWithRelayer({ opensSuccessfully: true });
+    await wakeRelay(provider);
+    expect(restartTransport).not.toHaveBeenCalled();
+  });
+
+  it('degrades to the polite path when the relayer has no restartTransport', async () => {
+    // A shape change in the library must not throw here.
+    const { provider, transportOpen } = providerWithRelayer({ withRestart: false });
+    await expect(wakeRelay(provider)).resolves.toBeUndefined();
+    expect(transportOpen).toHaveBeenCalledTimes(1);
   });
 
   it('swallows a failed reconnect instead of surfacing it', async () => {
     // An unreachable relay is not something the user can act on here, and the request they make next reports it
     // with the context of what they were actually trying to do.
-    const { provider } = providerWithRelayer();
+    const { provider, restartTransport } = providerWithRelayer();
     provider.client.core.relayer.transportOpen = vi.fn(async () => {
       throw new Error("Couldn't establish socket connection to the relay server");
     });
-    expect(() => wakeRelay(provider)).not.toThrow();
-    await Promise.resolve();
+    restartTransport.mockRejectedValueOnce(new Error('still down'));
+    await expect(wakeRelay(provider)).resolves.toBeUndefined();
   });
 
-  it('is inert for a wallet with no relay', () => {
+  it('is inert for a wallet with no relay', async () => {
     // An injected/extension wallet has no socket to wake.
-    expect(() => wakeRelay(undefined)).not.toThrow();
-    expect(() => wakeRelay({ request: () => undefined })).not.toThrow();
-    expect(() => wakeRelay({ client: { core: {} } })).not.toThrow();
+    await expect(wakeRelay(undefined)).resolves.toBeUndefined();
+    await expect(wakeRelay({ request: () => undefined })).resolves.toBeUndefined();
+    await expect(wakeRelay({ client: { core: {} } })).resolves.toBeUndefined();
   });
 });
 
