@@ -29,7 +29,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FxBox, FxButton, FxSpinner, FxText } from '@functionland/fx-ui';
-import { assign } from '@/platform/linking';
+import { assign, openUrl } from '@/platform/linking';
 import { useColorMode } from '@/stores/useSettingsStore';
 import { setAppKitTheme } from '@/wallet/appkit';
 import { signChainCode } from '@/wallet/signChainCode';
@@ -72,6 +72,22 @@ export const WALLET_STUCK_MS = 12000;
  * waiting for it, so the redirect can still fire after the request is over. See the `finally` below.
  */
 export const REDIRECT_GRACE_MS = 5000;
+
+/**
+ * Send the user into their wallet.
+ *
+ * A custom scheme (`metamask://…`) goes same-tab: the OS hands it to the wallet and this page is left exactly
+ * as it was — which matters, because this tab is the one still awaiting the signature.
+ *
+ * An https universal link must not. `assign` on one is a real navigation, and if no installed app claims it,
+ * Chrome simply follows it, unloading the page and destroying the in-memory WalletConnect session along with
+ * the pending request. The library itself makes the same distinction — its `openDeeplink` passes `_blank` for
+ * `http(s)` and `_self` otherwise — and so does `platform/linking.openUrl`.
+ */
+export function hopToWallet(link: string): void {
+  if (/^https?:/i.test(link)) openUrl(link);
+  else assign(link);
+}
 
 export interface WalletSignerProps {
   password: string;
@@ -228,7 +244,7 @@ export default function WalletSigner({
         // hopping again would bounce the user twice.
         if (capture.captured() || !capture.sawOpen()) {
           console.log('[sign] opening the wallet on the request:', link);
-          assign(link);
+          hopToWallet(link);
         } else {
           console.log('[sign] not opening the wallet: something already navigated');
         }
@@ -260,13 +276,11 @@ export default function WalletSigner({
   /**
    * Bring the wallet app forward. Must run in the tap handler — see walletLink.ts.
    *
-   * Same-tab `assign`, not a new tab: the OS hands the link to the wallet either way, and this tab is where
-   * the user has to come back to. A universal (https) link opened in a new tab would strand them on a blank
-   * page behind the one still waiting for the signature.
+   * Scheme-aware — see `hopToWallet` above for why an https universal link must not go through `assign`.
    */
   const openWallet = useCallback(() => {
     const link = requestLinkRef.current ?? connectedWalletLink(latest.current.wallet.provider);
-    if (link) assign(link);
+    if (link) hopToWallet(link);
   }, []);
 
   const busy = phase === 'connecting' || phase === 'signing';

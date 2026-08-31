@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  __resetRedirectCaptureForTests,
   captureAutoRedirect,
   isWalletRequestUrl,
   onceSessionRequestSent,
@@ -55,10 +56,13 @@ describe('captureAutoRedirect', () => {
   const realOpen = window.open;
 
   beforeEach(() => {
+    // The interceptor is a module-level singleton, so each test starts from a clean install state.
+    __resetRedirectCaptureForTests();
     open = vi.fn(() => null);
     window.open = open as unknown as Window['open'];
   });
   afterEach(() => {
+    __resetRedirectCaptureForTests();
     window.open = realOpen;
   });
 
@@ -117,6 +121,54 @@ describe('captureAutoRedirect', () => {
     window.open = other;
     capture.release();
     expect(window.open).toBe(other);
+  });
+
+  describe('overlapping captures', () => {
+    // `cancel()` sets the phase to idle synchronously, so the Sign button comes back at once and a retry can
+    // start while the cancelled attempt still holds its interceptor through REDIRECT_GRACE_MS.
+
+    it('hands the browser its own window.open back, however the releases interleave', () => {
+      const first = captureAutoRedirect();
+      const second = captureAutoRedirect();
+      // Whichever order they unwind in, what is restored must be the browser's, never another interceptor.
+      first.release();
+      expect(window.open).not.toBe(open);
+      second.release();
+      expect(window.open).toBe(open);
+    });
+
+    it('stops swallowing wallet links once the last capture is released', () => {
+      // The regression this guards: a nested capture used to leave an interceptor installed for the life of the
+      // page, silently eating every wallet deep link long after the request that installed it was over.
+      const first = captureAutoRedirect();
+      const second = captureAutoRedirect();
+      second.release();
+      first.release();
+
+      window.open(REQUEST_URL, '_self', 'noreferrer noopener');
+      expect(open).toHaveBeenCalledWith(REQUEST_URL, '_self', 'noreferrer noopener');
+    });
+
+    it('reports the redirect to every capture that is live when it happens', () => {
+      const first = captureAutoRedirect();
+      const second = captureAutoRedirect();
+      window.open(REQUEST_URL, '_self', 'noreferrer noopener');
+      expect(first.captured()).toBe(REQUEST_URL);
+      expect(second.captured()).toBe(REQUEST_URL);
+      expect(open).not.toHaveBeenCalled();
+      first.release();
+      second.release();
+    });
+
+    it('does not report a redirect to a capture that had already released', () => {
+      const first = captureAutoRedirect();
+      const second = captureAutoRedirect();
+      first.release();
+      window.open(REQUEST_URL, '_self', 'noreferrer noopener');
+      expect(first.captured()).toBeNull();
+      expect(second.captured()).toBe(REQUEST_URL);
+      second.release();
+    });
   });
 });
 
