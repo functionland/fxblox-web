@@ -8,7 +8,12 @@ vi.mock('../lanIpCache', () => ({
   refreshOnce: vi.fn().mockResolvedValue(undefined),
   rememberedLanIp: vi.fn().mockResolvedValue(null),
   noteRecord: vi.fn(),
+  noteLanIp: vi.fn(),
   clear: vi.fn(),
+}));
+
+vi.mock('@/services/lanDiscovery', () => ({
+  discoverBloxesOnLan: vi.fn().mockResolvedValue({ found: [], failure: 'not-found', lna: 'granted' }),
 }));
 
 vi.mock('../httpAiClient', async (importOriginal) => {
@@ -19,10 +24,13 @@ vi.mock('../httpAiClient', async (importOriginal) => {
 import { ipIsPrivateLan, selectAiTransport } from '../aiTransport';
 import * as lanIpCache from '../lanIpCache';
 import { HttpAiClient } from '../httpAiClient';
+import { discoverBloxesOnLan } from '@/services/lanDiscovery';
 
 const findAuthorizedBlox = lanIpCache.findAuthorizedBlox as unknown as ReturnType<typeof vi.fn>;
 const refreshOnce = lanIpCache.refreshOnce as unknown as ReturnType<typeof vi.fn>;
 const rememberedLanIp = lanIpCache.rememberedLanIp as unknown as ReturnType<typeof vi.fn>;
+const noteLanIp = lanIpCache.noteLanIp as unknown as ReturnType<typeof vi.fn>;
+const discoverMock = discoverBloxesOnLan as unknown as ReturnType<typeof vi.fn>;
 const HttpAiClientMock = HttpAiClient as unknown as ReturnType<typeof vi.fn>;
 
 function record(over: Record<string, unknown> = {}, host = '192.168.1.50') {
@@ -43,6 +51,8 @@ beforeEach(() => {
   findAuthorizedBlox.mockReset();
   refreshOnce.mockReset().mockResolvedValue(undefined);
   rememberedLanIp.mockReset().mockResolvedValue(null);
+  noteLanIp.mockReset();
+  discoverMock.mockReset().mockResolvedValue({ found: [], failure: 'not-found', lna: 'granted' });
   HttpAiClientMock.mockReset();
 });
 
@@ -346,6 +356,60 @@ describe('selectAiTransport — the address must be the right Blox', () => {
     findAuthorizedBlox.mockReturnValue(null);
     HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.1.77', 'SOMEONE_ELSES_BLOX'));
     const choice = await selectAiTransport('BLOX1', 'APP1', { manualIp: '192.168.1.77', scanIfEmpty: false });
+    expect(choice.kind).toBe('ble');
+  });
+});
+
+describe('selectAiTransport — searching this network when nothing else is left', () => {
+  // Before this tier existed, a browser with no remembered address and no typed IP had nothing to try:
+  // `refreshOnce` only asks discovery `/find-box` for private ip4 entries, which needs unshipped firmware and
+  // returns nothing. Blox AI reported "cannot reach your Blox" about a Blox on the same switch.
+  test('finds the Blox by scanning and uses it', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    discoverMock.mockResolvedValue({ found: [{ host: '192.168.2.159', peerId: 'BLOX1' }], lna: 'granted' });
+    HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.2.159'));
+
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: true });
+    expect(choice.kind).toBe('lan-http');
+    expect(choice.reason).toContain('network scan found 192.168.2.159');
+    // Written back, so the next session takes the remembered-address tier and never pays for a scan again.
+    expect(noteLanIp).toHaveBeenCalledWith(
+      expect.objectContaining({ ip: '192.168.2.159', bloxPeerId: 'BLOX1', authorizer: 'APP1' }),
+    );
+  });
+
+  test('a `.local` name is usable, and is not written back to a cache that only holds addresses', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    discoverMock.mockResolvedValue({ found: [{ host: 'fxblox-rk1.local', peerId: 'BLOX1' }], lna: 'granted' });
+    HttpAiClientMock.mockImplementation(clientHealthyAt('fxblox-rk1.local'));
+
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: true });
+    expect(choice.kind).toBe('lan-http');
+    expect(noteLanIp).not.toHaveBeenCalled();
+  });
+
+  test('a Blox that is not the one we mean is ignored', async () => {
+    // The scan reads each answer's peer id, so a private address pointing at someone else's box on another
+    // network is rejected before anything is sent to it.
+    findAuthorizedBlox.mockReturnValue(null);
+    discoverMock.mockResolvedValue({ found: [{ host: '192.168.2.7', peerId: 'SOMEONE-ELSE' }], lna: 'granted' });
+    HttpAiClientMock.mockImplementation(clientHealthyAt('192.168.2.7'));
+
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: true });
+    expect(choice.kind).toBe('ble');
+  });
+
+  test('does not scan when the caller did not ask for it', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: false });
+    expect(discoverMock).not.toHaveBeenCalled();
+    expect(choice.kind).toBe('ble');
+  });
+
+  test('a scan that throws falls through to BLE rather than breaking the screen', async () => {
+    findAuthorizedBlox.mockReturnValue(null);
+    discoverMock.mockRejectedValue(new Error('permission dismissed'));
+    const choice = await selectAiTransport('BLOX1', 'APP1', { scanIfEmpty: true });
     expect(choice.kind).toBe('ble');
   });
 });

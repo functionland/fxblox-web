@@ -260,7 +260,14 @@ export class FulaClient {
   }
 
   /** Reuse the tracked connection, or dial (candidate order: bloxAddr → find-box → relays → hardcoded). */
-  async ensureConnected(opts: { signal?: AbortSignal; refresh?: boolean } = {}): Promise<TrackedConnection> {
+  async ensureConnected(
+    opts: {
+      signal?: AbortSignal;
+      refresh?: boolean;
+      /** Internal: set on the one automatic retry after a stale certhash, so it cannot loop. */
+      retriedCerthash?: boolean;
+    } = {},
+  ): Promise<TrackedConnection> {
     if (this.closed) throw new FulaWebError('CLIENT_CLOSED', 'the client was shut down');
     const box = this.requireBox();
     const now = cfg.now;
@@ -330,8 +337,23 @@ export class FulaClient {
     } catch (e) {
       const err = isFulaWebError(e) ? e : new FulaWebError('DIAL_FAILED', errorMessage(e), { cause: e });
       this.lastError = err;
-      // A stale certhash is the one dial failure discovery can fix → refresh next time.
-      if (err.code === 'NO_CERTHASH') this.refreshDiscovery = true;
+      // A stale certhash is the one dial failure discovery can fix, so fix it and try again NOW.
+      //
+      // This used to only set the flag and rethrow, which made the refresh happen on the *next* call — so the
+      // first action after a relay rotated its WebTransport certificate always failed with "certificate"/
+      // NO_CERTHASH, and the user had to press the button a second time to get the retry they were owed. Two
+      // taps for every plugin install and every plugin screen, reported from the field exactly that way.
+      //
+      // kubo rotates those certs on a 14-day cycle and advertises current AND next, so a stale hash is a
+      // routine event, not an exceptional one. One retry is enough: `retriedCerthash` makes it a single extra
+      // attempt with freshly resolved candidates, never a loop against a relay that is genuinely unreachable.
+      if (err.code === 'NO_CERTHASH') {
+        this.refreshDiscovery = true;
+        if (!opts.retriedCerthash) {
+          log.info('stale certhash — refreshing discovery and redialling once');
+          return this.ensureConnected({ ...opts, refresh: true, retriedCerthash: true });
+        }
+      }
       throw err;
     }
   }
