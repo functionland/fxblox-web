@@ -328,6 +328,10 @@ export default function WalletSigner({
    * itself, so a wallet that did receive the request shows it (a session request is modal wherever you are),
    * and a wallet that did not at least comes up usable instead of wedged. It is strictly a fallback: this only
    * runs after the request-scoped link has already been tried and produced nothing.
+   *
+   * `walletStuckHint` has to name this one FIRST, before the force-quit. A user who kills the wallet on the
+   * way past never reaches this branch — a cold wallet handles `…/wc?requestId=` perfectly well — so a hint
+   * that led with "close it from your recent apps" would route every user around the cheaper fix.
    */
   const openWallet = useCallback(() => {
     const bare = connectedWalletLink(latest.current.wallet.provider);
