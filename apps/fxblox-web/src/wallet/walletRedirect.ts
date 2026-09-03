@@ -35,6 +35,7 @@
  * cannot outlive the page, and has the useful side effect of handing us the exact URL the library built —
  * including the request id — so nothing has to be reconstructed from its internals.
  */
+import { assign } from '@/platform/linking';
 import { walletRequestLink } from './walletLink';
 
 const SESSION_REQUEST_SENT = 'session_request_sent';
@@ -212,6 +213,41 @@ export function captureAutoRedirect(): RedirectCapture {
       uninstall();
     },
   };
+}
+
+/**
+ * `window.open`, as the browser meant it — stepping over the interceptor above.
+ *
+ * Our own app-switch must not go through the patch, and used to. `isWalletRequestUrl` matches, by construction,
+ * the very URL we are trying to open: it is the request link. So a wallet whose deep link is an https universal
+ * link (`https://metamask.app.link/wc?requestId=…`) — which must be opened with `window.open`, never `assign`,
+ * see `hopToWallet` — had its hop swallowed by our own trap. `window.open` returned null, `openUrl`'s `false`
+ * was read by nobody, and no wallet came forward.
+ *
+ * That was not a narrow window either. The capture is released only after the request settles, so for the whole
+ * life of the signature request BOTH the automatic hop and the "Open wallet to approve" button did nothing at
+ * all for every universal-link wallet.
+ */
+function browserOpenUrl(url: string): void {
+  const open =
+    installedPatch && window.open === installedPatch && browserOpen ? browserOpen : window.open;
+  open.call(window, url, '_blank', 'noopener,noreferrer');
+}
+
+/**
+ * Send the user into their wallet.
+ *
+ * A custom scheme (`metamask://…`) goes same-tab: the OS hands it to the wallet and this page is left exactly
+ * as it was — which matters, because this tab is the one still awaiting the signature.
+ *
+ * An https universal link must not. `assign` on one is a real navigation, and if no installed app claims it,
+ * Chrome simply follows it, unloading the page and destroying the in-memory WalletConnect session along with
+ * the pending request. The library itself makes the same distinction — its `openDeeplink` passes `_blank` for
+ * `http(s)` and `_self` otherwise — and so does `platform/linking.openUrl`.
+ */
+export function hopToWallet(link: string): void {
+  if (/^https?:/i.test(link)) browserOpenUrl(link);
+  else assign(link);
 }
 
 /** Test seam: forget any installed patch without touching `window.open`. */
