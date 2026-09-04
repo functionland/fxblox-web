@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assign } from '@/platform/linking';
 import {
   __resetRedirectCaptureForTests,
   captureAutoRedirect,
+  hopToWallet,
   isWalletRequestUrl,
   onceSessionRequestSent,
   requestLinkFrom,
 } from '../walletRedirect';
+
+vi.mock('@/platform/linking', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/linking')>();
+  return { ...actual, assign: vi.fn() };
+});
 
 const REQUEST_URL = 'metamask://wc?requestId=1756166400123&sessionTopic=abc123';
 
@@ -169,6 +176,57 @@ describe('captureAutoRedirect', () => {
       expect(second.captured()).toBe(REQUEST_URL);
       second.release();
     });
+  });
+});
+
+describe('hopToWallet', () => {
+  const UNIVERSAL_URL = 'https://metamask.app.link/wc?requestId=42&sessionTopic=topic-1';
+  let open: ReturnType<typeof vi.fn>;
+  const realOpen = window.open;
+
+  beforeEach(() => {
+    __resetRedirectCaptureForTests();
+    open = vi.fn(() => null);
+    window.open = open as unknown as Window['open'];
+    vi.mocked(assign).mockClear();
+  });
+  afterEach(() => {
+    __resetRedirectCaptureForTests();
+    window.open = realOpen;
+  });
+
+  it('sends a custom scheme same-tab, which leaves this page (and its pending request) alone', () => {
+    hopToWallet('metamask://wc?requestId=42&sessionTopic=topic-1');
+    expect(assign).toHaveBeenCalledWith('metamask://wc?requestId=42&sessionTopic=topic-1');
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('opens an https universal link in a new tab rather than navigating away from the request', () => {
+    hopToWallet(UNIVERSAL_URL);
+    expect(open).toHaveBeenCalledWith(UNIVERSAL_URL, '_blank', 'noopener,noreferrer');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('is not swallowed by our own interceptor', () => {
+    // The regression: our hop went through `window.open`, which during a signing attempt IS the interceptor —
+    // and its predicate matches the request link by construction, because that is exactly what it is built to
+    // swallow. So every universal-link wallet got no app-switch at all, from the automatic hop OR the button,
+    // for the whole life of the request (the capture outlives it by REDIRECT_GRACE_MS).
+    const capture = captureAutoRedirect();
+    hopToWallet(UNIVERSAL_URL);
+    expect(open).toHaveBeenCalledWith(UNIVERSAL_URL, '_blank', 'noopener,noreferrer');
+    // And it must not look like the library redirected: this hop is ours.
+    expect(capture.captured()).toBeNull();
+    expect(capture.sawOpen()).toBe(false);
+    capture.release();
+  });
+
+  it('still swallows the library redirect while doing so', () => {
+    const capture = captureAutoRedirect();
+    window.open(UNIVERSAL_URL, '_blank', 'noreferrer noopener');
+    expect(open).not.toHaveBeenCalled();
+    expect(capture.captured()).toBe(UNIVERSAL_URL);
+    capture.release();
   });
 });
 

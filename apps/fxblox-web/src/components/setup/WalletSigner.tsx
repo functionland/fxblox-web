@@ -23,18 +23,32 @@
  * `session_request_sent` — which means the engine has finished TRYING to publish, success or not — and hop
  * then, carrying the request id the wallet needs to find the prompt.
  *
+ * ## And the wallet can still hang, for a reason that is not ours
+ *
+ * A later report: MetaMask on Android wedges on its splash screen on the first hop after connecting, every
+ * time, and recovers only once it is force-quit and reopened. Asked to retry WITHOUT force-quitting — the same
+ * URL, from a real tap, so user activation cannot be the difference — the user reports it hangs just the same.
+ * A cold wallet works; a warm one does not, whatever this page does. So the fault is inside the wallet, and the
+ * only levers here are (a) not repeating a hop that has already been shown not to work — see `openWallet` — and
+ * (b) telling the user what happened the moment they come back, rather than on a timer that runs out while they
+ * are still staring at the wallet.
+ *
  * `signChainCode()` stays byte-identical to mobile: the signature seeds the DID secret key, so a changed byte
  * means web and mobile derive different identities from the same password and wallet.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FxBox, FxButton, FxSpinner, FxText } from '@functionland/fx-ui';
-import { assign, openUrl } from '@/platform/linking';
 import { useColorMode } from '@/stores/useSettingsStore';
 import { setAppKitTheme } from '@/wallet/appkit';
 import { signChainCode } from '@/wallet/signChainCode';
 import { connectedWalletLink } from '@/wallet/walletLink';
-import { captureAutoRedirect, onceSessionRequestSent, requestLinkFrom } from '@/wallet/walletRedirect';
+import {
+  captureAutoRedirect,
+  hopToWallet,
+  onceSessionRequestSent,
+  requestLinkFrom,
+} from '@/wallet/walletRedirect';
 import { isRelayConnected, useRelayWake, wakeRelay } from '@/wallet/relayWake';
 import { useWallet } from '@/wallet/useWallet';
 
@@ -62,6 +76,10 @@ export const WALLET_NUDGE_MS = 4000;
  * no way to reach into it — so the honest thing is to say what happened and how to get past it.
  *
  * Long enough not to accuse a wallet that is merely slow, since the prompt often takes several seconds.
+ *
+ * A backstop, not the main signal: this timer runs while the user is inside the wallet, so on its own it only
+ * ever tells them something they have already found out. Coming back with the request still unanswered shows
+ * the same hint immediately.
  */
 export const WALLET_STUCK_MS = 12000;
 
@@ -72,22 +90,6 @@ export const WALLET_STUCK_MS = 12000;
  * waiting for it, so the redirect can still fire after the request is over. See the `finally` below.
  */
 export const REDIRECT_GRACE_MS = 5000;
-
-/**
- * Send the user into their wallet.
- *
- * A custom scheme (`metamask://…`) goes same-tab: the OS hands it to the wallet and this page is left exactly
- * as it was — which matters, because this tab is the one still awaiting the signature.
- *
- * An https universal link must not. `assign` on one is a real navigation, and if no installed app claims it,
- * Chrome simply follows it, unloading the page and destroying the in-memory WalletConnect session along with
- * the pending request. The library itself makes the same distinction — its `openDeeplink` passes `_blank` for
- * `http(s)` and `_self` otherwise — and so does `platform/linking.openUrl`.
- */
-export function hopToWallet(link: string): void {
-  if (/^https?:/i.test(link)) openUrl(link);
-  else assign(link);
-}
 
 export interface WalletSignerProps {
   password: string;
@@ -120,6 +122,12 @@ export default function WalletSigner({
   const [phase, setPhase] = useState<SignerPhase>('idle');
   const [showNudge, setShowNudge] = useState(false);
   const [showStuckHint, setShowStuckHint] = useState(false);
+  // Have we sent them into the wallet for THIS request, and did they come back with it still unanswered?
+  // Mirrored into refs for the stable tap handler below.
+  const wentToWalletRef = useRef(false);
+  const [walletShowedNothing, setWalletShowedNothing] = useState(false);
+  const walletShowedNothingRef = useRef(false);
+  walletShowedNothingRef.current = walletShowedNothing;
   // Set once the request is on the relay: the deep link that opens the wallet ON this request, rather than on
   // its home screen. Mirrored into a ref for the stable tap handler below.
   const [requestLink, setRequestLink] = useState<string | null>(null);
@@ -149,6 +157,8 @@ export default function WalletSigner({
     if (phase !== 'signing') {
       setShowNudge(false);
       setShowStuckHint(false);
+      setWalletShowedNothing(false);
+      wentToWalletRef.current = false;
       return undefined;
     }
     const nudge = setTimeout(() => setShowNudge(true), WALLET_NUDGE_MS);
@@ -157,6 +167,27 @@ export default function WalletSigner({
       clearTimeout(nudge);
       clearTimeout(stuck);
     };
+  }, [phase]);
+
+  /**
+   * The user went to the wallet and came back, and the request is still unanswered.
+   *
+   * That is the strongest evidence available that the wallet showed them nothing: they looked at it and
+   * returned. It beats the timer above, which ticks while they are still inside the wallet and therefore only
+   * ever arrives after the fact — the hint they need to read reaches them once they are already stuck.
+   *
+   * It also changes where the next tap sends them; see `openWallet`.
+   */
+  useEffect(() => {
+    if (phase !== 'signing') return undefined;
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!wentToWalletRef.current) return;
+      console.log('[sign] back on this page with the request still out — the wallet showed nothing');
+      setWalletShowedNothing(true);
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [phase]);
 
   /**
@@ -244,6 +275,7 @@ export default function WalletSigner({
         // hopping again would bounce the user twice.
         if (capture.captured() || !capture.sawOpen()) {
           console.log('[sign] opening the wallet on the request:', link);
+          wentToWalletRef.current = true;
           hopToWallet(link);
         } else {
           console.log('[sign] not opening the wallet: something already navigated');
@@ -276,11 +308,38 @@ export default function WalletSigner({
   /**
    * Bring the wallet app forward. Must run in the tap handler — see walletLink.ts.
    *
-   * Scheme-aware — see `hopToWallet` above for why an https universal link must not go through `assign`.
+   * Scheme-aware — see `hopToWallet` in walletRedirect.ts for why an https universal link must not go through
+   * `assign`.
+   *
+   * ## Why a second attempt drops the request id
+   *
+   * `…/wc?requestId=` is the right link the first time: it is what makes the wallet surface THIS prompt rather
+   * than its home screen. But once the user has been there and come back empty-handed, sending the same link
+   * again is sending them back into the thing that just failed.
+   *
+   * The field report is MetaMask on Android sitting on its splash screen, every time, on the first hop after
+   * the connect — and recovering only after the wallet is force-quit and reopened. A cold wallet works; a warm
+   * one does not. The likeliest reading is that `…/wc?requestId=` puts MetaMask into the route that WAITS for
+   * that request to arrive over its OWN relay socket — the socket Android suspended while it sat in the
+   * background — and that wait is the full-screen "splash" the user is stuck on. Nothing on a web page can
+   * reach into another app and reconnect its socket.
+   *
+   * What a page CAN do is stop asking for the part that hangs. The bare scheme requests nothing but the app
+   * itself, so a wallet that did receive the request shows it (a session request is modal wherever you are),
+   * and a wallet that did not at least comes up usable instead of wedged. It is strictly a fallback: this only
+   * runs after the request-scoped link has already been tried and produced nothing.
+   *
+   * `walletStuckHint` has to name this one FIRST, before the force-quit. A user who kills the wallet on the
+   * way past never reaches this branch — a cold wallet handles `…/wc?requestId=` perfectly well — so a hint
+   * that led with "close it from your recent apps" would route every user around the cheaper fix.
    */
   const openWallet = useCallback(() => {
-    const link = requestLinkRef.current ?? connectedWalletLink(latest.current.wallet.provider);
-    if (link) hopToWallet(link);
+    const bare = connectedWalletLink(latest.current.wallet.provider);
+    const link = (walletShowedNothingRef.current ? bare : null) ?? requestLinkRef.current ?? bare;
+    if (!link) return;
+    console.log('[sign] opening the wallet by hand:', link);
+    wentToWalletRef.current = true;
+    hopToWallet(link);
   }, []);
 
   const busy = phase === 'connecting' || phase === 'signing';
@@ -298,7 +357,7 @@ export default function WalletSigner({
           {t('setup.linkPassword.walletConnectedTapSign')}
         </FxText>
       )}
-      {showStuckHint && walletLink && (
+      {(showStuckHint || walletShowedNothing) && walletLink && (
         <FxText variant="bodyXSRegular" color="content2" textAlign="center" testID="wallet-stuck-hint">
           {t('setup.linkPassword.walletStuckHint')}
         </FxText>

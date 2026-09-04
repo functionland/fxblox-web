@@ -389,6 +389,100 @@ describe('LinkPassword', () => {
     expect(linking.assign).not.toHaveBeenCalled();
   });
 
+  it('wallet path: coming back with the request unanswered says so at once, and drops the request id', async () => {
+    // The field report: MetaMask on Android wedges on its splash screen on the first hop after connecting,
+    // every time, and only a force-quit clears it. Retried from a real tap, same URL, it hangs the same way —
+    // so the fault is inside the wallet, not in how the page navigates.
+    //
+    // Two things follow, and this covers both. Returning to this page with the request still out is proof the
+    // wallet showed nothing, so the recovery hint belongs on screen NOW rather than when a 12s timer that ran
+    // while the user was inside the wallet finally expires. And the next tap must not repeat the link that
+    // just failed: `…/wc?requestId=` is what puts the wallet into the route that waits for a request it never
+    // received, so the retry asks only for the app.
+    const user = userEvent.setup();
+    vi.mocked(linking.assign).mockClear();
+    const listeners = new Set<(payload: unknown) => void>();
+    let approve: (sig: string) => void = () => undefined;
+    wallet.state.account = '0xABC';
+    wallet.state.connected = true;
+    wallet.state.provider = {
+      request: vi.fn(() => {
+        for (const fn of [...listeners])
+          fn({ topic: 'topic-1', request: {}, chainId: 'eip155:1', id: 42 });
+        return new Promise<string>((resolve) => (approve = resolve));
+      }),
+      session: { peer: { metadata: { redirect: { native: 'metamask://' } } } },
+      client: {
+        on: (_event: string, fn: (payload: unknown) => void) => listeners.add(fn),
+        off: (_event: string, fn: (payload: unknown) => void) => listeners.delete(fn),
+      },
+    } as never;
+
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    try {
+      await renderSetupAt('/setup/link-password');
+      await fillPasswordAndConsent(user);
+      await user.click(await screen.findByTestId('sign-with-wallet'));
+
+      await waitFor(() =>
+        expect(linking.assign).toHaveBeenCalledWith('metamask://wc?requestId=42&sessionTopic=topic-1'),
+      );
+      // Nothing has gone wrong yet: the wallet has only just been asked to come forward.
+      expect(screen.queryByTestId('wallet-stuck-hint')).toBeNull();
+
+      // Away to the wallet, and back with nothing to show for it.
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+
+      // Immediately, and well inside WALLET_STUCK_MS.
+      expect(await screen.findByTestId('wallet-stuck-hint')).toBeInTheDocument();
+
+      vi.mocked(linking.assign).mockClear();
+      await user.click(screen.getByTestId('open-wallet'));
+      expect(linking.assign).toHaveBeenCalledWith('metamask://');
+
+      // The request was never abandoned: a signature approved after all this still lands.
+      await act(async () => {
+        approve('0xlate');
+      });
+      await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xlate'));
+    } finally {
+      visibility.mockRestore();
+    }
+  });
+
+  it('wallet path: a visibility change before any hop is not treated as a wedged wallet', async () => {
+    // Tab switches happen for all sorts of reasons. Only a return from a wallet WE sent them to is evidence.
+    const user = userEvent.setup();
+    vi.mocked(linking.assign).mockClear();
+    let approve: (sig: string) => void = () => undefined;
+    wallet.state.account = '0xABC';
+    wallet.state.connected = true;
+    wallet.state.provider = {
+      // No `client`, so nothing announces the publish and no hop is ever made.
+      request: vi.fn(() => new Promise<string>((resolve) => (approve = resolve))),
+      session: { peer: { metadata: { redirect: { native: 'metamask://' } } } },
+    } as never;
+
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    try {
+      await renderSetupAt('/setup/link-password');
+      await fillPasswordAndConsent(user);
+      await user.click(await screen.findByTestId('sign-with-wallet'));
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(screen.queryByTestId('wallet-stuck-hint')).toBeNull();
+      await act(async () => {
+        approve('0xlate');
+      });
+      await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xlate'));
+    } finally {
+      visibility.mockRestore();
+    }
+  });
+
   it('wallet path: dismissing the chooser leaves Sign available, not a stuck Cancel', async () => {
     const user = userEvent.setup();
     await renderSetupAt('/setup/link-password');
