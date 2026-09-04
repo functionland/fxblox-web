@@ -69,9 +69,9 @@
     },
     "debug": {
       "banner": "调试模式已启用 {{id}}",
-      "share": "分享您的调试 ID",
-      "copied": "调试 ID 已复制到剪贴板",
-      "shareFailed": "无法分享调试 ID"
+      "share": "分享您的调试 ID 和日志",
+      "copied": "调试 ID 和日志已复制到剪贴板",
+      "shareFailed": "无法分享调试 ID 和日志"
     },
     "pwa": {
       "updateTitle": "有新版本可用",

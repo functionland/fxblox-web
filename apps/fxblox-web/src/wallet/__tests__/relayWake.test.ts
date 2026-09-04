@@ -10,6 +10,11 @@ interface RelayerState {
   /** Flip `connected` to true once `transportOpen` resolves, the way a healthy dial behaves. */
   opensSuccessfully?: boolean;
   withRestart?: boolean;
+  /**
+   * Expose `onProviderDisconnect` — the relayer's own "socket closed, dial a fresh one" path. `fresh` says
+   * whether that fresh dial comes up (after a short delay, like the real 100 ms reconnect timer) or never.
+   */
+  withFastDisconnect?: false | 'fresh' | 'never';
 }
 
 function providerWithRelayer(state: RelayerState = {}) {
@@ -19,6 +24,7 @@ function providerWithRelayer(state: RelayerState = {}) {
     wedged = false,
     opensSuccessfully = false,
     withRestart = true,
+    withFastDisconnect = false,
   } = state;
   const relayer: Record<string, unknown> = { connected, connecting };
   const transportOpen = vi.fn(() =>
@@ -31,9 +37,20 @@ function providerWithRelayer(state: RelayerState = {}) {
   const restartTransport = vi.fn(async () => {
     relayer.connected = true;
   });
+  const onProviderDisconnect = vi.fn(async () => {
+    relayer.connected = false;
+    if (withFastDisconnect === 'fresh') setTimeout(() => (relayer.connected = true), 120);
+  });
   relayer.transportOpen = transportOpen;
   if (withRestart) relayer.restartTransport = restartTransport;
-  return { transportOpen, restartTransport, relayer, provider: { client: { core: { relayer } } } };
+  if (withFastDisconnect) relayer.onProviderDisconnect = onProviderDisconnect;
+  return {
+    transportOpen,
+    restartTransport,
+    onProviderDisconnect,
+    relayer,
+    provider: { client: { core: { relayer } } },
+  };
 }
 
 /** jsdom reports 'visible' by default; this flips it for the duration of one assertion. */
@@ -69,6 +86,35 @@ describe('wakeRelay', () => {
     await wakeRelay(provider, { afterBackground: true });
     expect(restartTransport).toHaveBeenCalledTimes(1);
     expect(transportOpen).not.toHaveBeenCalled();
+  });
+
+  it('after a background stint, prefers dropping the socket for a fresh one over a polite restart', async () => {
+    // `restartTransport()` asks a dead socket to close and waits up to 2 s for a handshake a suspended TCP
+    // connection never completes. `onProviderDisconnect()` is what the relayer runs when a socket's `close`
+    // fires on its own: drop it and dial a fresh one 100 ms later — the truthful treatment of a socket that
+    // is, in fact, gone. No two-second wait.
+    const { provider, restartTransport, onProviderDisconnect, relayer } = providerWithRelayer({
+      connected: true,
+      withFastDisconnect: 'fresh',
+    });
+    await wakeRelay(provider, { afterBackground: true });
+    expect(onProviderDisconnect).toHaveBeenCalledTimes(1);
+    expect(restartTransport).not.toHaveBeenCalled();
+    expect(relayer.connected).toBe(true);
+  });
+
+  it('falls back to the polite restart when the fresh socket does not come up within the bound', async () => {
+    vi.useFakeTimers();
+    const { provider, restartTransport, onProviderDisconnect, relayer } = providerWithRelayer({
+      connected: true,
+      withFastDisconnect: 'never',
+    });
+    const done = wakeRelay(provider, { afterBackground: true });
+    await vi.advanceTimersByTimeAsync(WAKE_TIMEOUT_MS + 200);
+    await done;
+    expect(onProviderDisconnect).toHaveBeenCalledTimes(1);
+    expect(restartTransport).toHaveBeenCalledTimes(1);
+    expect(relayer.connected).toBe(true);
   });
 
   it('after a background stint, a socket that is honestly down takes the normal path', async () => {

@@ -67,6 +67,7 @@
  * `BACKGROUND_STINT_MS` is a flick between tabs, not a trip to a wallet, and is left alone.
  */
 import { useEffect, useRef } from 'react';
+import { diag, markReturn } from './diag';
 
 /**
  * How long to let the polite `transportOpen()` run before assuming it is awaiting a frozen attempt.
@@ -100,6 +101,11 @@ interface RelayerLike {
   transportOpen(): Promise<void>;
   /** Present since core 2.x; guarded anyway so a shape change degrades to the polite path. */
   restartTransport?(): Promise<void>;
+  /**
+   * What the relayer runs when its socket's `close` event fires: drop the socket, stop the subscriber,
+   * dial a FRESH socket 100 ms later. Guarded like `restartTransport`; see `wakeRelay` for why it is used.
+   */
+  onProviderDisconnect?(): Promise<void>;
 }
 
 function relayerFrom(provider: unknown): RelayerLike | null {
@@ -133,22 +139,57 @@ const settleAfter = (ms: number): Promise<void> =>
  * has no relay). Never rejects: a relay that cannot be reached is not something the caller can act on, and the
  * next real request reports it properly, with the context of what the user was trying to do.
  */
+/** Poll `connected` until it flips or the bound expires. */
+async function untilConnected(relayer: RelayerLike, boundMs: number): Promise<boolean> {
+  const deadline = Date.now() + boundMs;
+  while (!relayer.connected && Date.now() < deadline) await settleAfter(100);
+  return relayer.connected;
+}
+
 export async function wakeRelay(provider: unknown, opts: WakeRelayOptions = {}): Promise<void> {
   const relayer = relayerFrom(provider);
   if (!relayer) return;
+  const startedAt = Date.now();
   if (relayer.connected) {
     // `readyState === OPEN` is the socket's opinion, and after a background stint it is not worth having —
-    // Android suspends the connection underneath it without a word. Restart rather than wait for Chrome's
-    // TCP stack to find out (file header). Off the background path a live socket is left alone as before.
-    if (!opts.afterBackground || typeof relayer.restartTransport !== 'function') return;
-    console.log('[relay] back from the background — restarting a socket that claims to be open');
+    // Android suspends the connection underneath it without a word. Off the background path a live socket
+    // is left alone as before.
+    if (!opts.afterBackground) return;
+    // Two ways to replace it. `restartTransport()` is the polite one: it asks the dead socket to close and
+    // waits up to 2 s for a close handshake that a suspended TCP connection will never complete — two
+    // seconds of the very delay this exists to remove. `onProviderDisconnect()` is what the relayer runs when
+    // a socket's `close` event fires on its own: drop it, stop the subscriber, dial a fresh socket 100 ms
+    // later. The dead socket is abandoned rather than closed, its listeners already detached by
+    // `createProvider()`, so its eventual close reaches nobody. That is the truthful treatment of a socket
+    // that is, in fact, gone. The polite path stays as the fallback if the fast one does not get the socket
+    // up within the bound.
+    if (typeof relayer.onProviderDisconnect === 'function') {
+      diag('[relay] back from the background: socket claims OPEN — dropping it for a fresh one');
+      await relayer.onProviderDisconnect().catch(() => undefined);
+      if (await untilConnected(relayer, WAKE_TIMEOUT_MS)) {
+        diag(`[relay] fresh socket up in ${Date.now() - startedAt}ms`);
+        return;
+      }
+      diag('[relay] fresh socket not up within the bound — restarting the transport');
+    } else {
+      diag('[relay] back from the background: socket claims OPEN — restarting the transport');
+    }
+    if (typeof relayer.restartTransport !== 'function') return;
     await relayer.restartTransport().catch(() => undefined);
+    diag(`[relay] transport restart finished in ${Date.now() - startedAt}ms, connected=${relayer.connected}`);
     return;
   }
+  diag(`[relay] socket is down (connecting=${relayer.connecting}) — opening the transport`);
   // Bounded, because this call awaits any in-flight attempt — including one Android froze (see header).
   await Promise.race([relayer.transportOpen().catch(() => undefined), settleAfter(WAKE_TIMEOUT_MS)]);
-  if (relayer.connected || typeof relayer.restartTransport !== 'function') return;
+  if (relayer.connected) {
+    diag(`[relay] transport open in ${Date.now() - startedAt}ms`);
+    return;
+  }
+  if (typeof relayer.restartTransport !== 'function') return;
+  diag('[relay] transportOpen did not get the socket up within the bound — restarting the transport');
   await relayer.restartTransport().catch(() => undefined);
+  diag(`[relay] transport restart finished in ${Date.now() - startedAt}ms, connected=${relayer.connected}`);
 }
 
 /**
@@ -165,11 +206,17 @@ export function useRelayWake(provider: unknown): void {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         hiddenAt = Date.now();
+        diag('[tab] hidden');
         return;
       }
       if (document.visibilityState !== 'visible') return;
-      const afterBackground = hiddenAt !== null && Date.now() - hiddenAt >= BACKGROUND_STINT_MS;
+      const hiddenFor = hiddenAt === null ? null : Date.now() - hiddenAt;
+      const afterBackground = hiddenFor !== null && hiddenFor >= BACKGROUND_STINT_MS;
       hiddenAt = null;
+      markReturn();
+      diag(
+        `[tab] visible after ${hiddenFor ?? '?'}ms hidden; relay provider ${latest.current ? 'present' : 'MISSING'}`,
+      );
       void wakeRelay(latest.current, { afterBackground });
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
