@@ -44,6 +44,7 @@ import { useTranslation } from 'react-i18next';
 import { FxBox, FxButton, FxSpinner, FxText } from '@functionland/fx-ui';
 import { useColorMode } from '@/stores/useSettingsStore';
 import { getAppKit, setAppKitTheme } from '@/wallet/appkit';
+import { diag } from '@/wallet/diag';
 import { signChainCode } from '@/wallet/signChainCode';
 import { connectedWalletLink } from '@/wallet/walletLink';
 import {
@@ -93,6 +94,21 @@ export const WALLET_STUCK_MS = 12000;
  * waiting for it, so the redirect can still fire after the request is over. See the `finally` below.
  */
 export const REDIRECT_GRACE_MS = 5000;
+
+/** Chrome's transient-activation flag at the moment of an app-switch — whether a navigation would be allowed. */
+function userActivation(): string {
+  const ua = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
+  return ua ? String(ua.isActive) : 'n/a';
+}
+
+/** The wallet AppKit stored as the deep-link target — native scheme or universal link, which changes the hop. */
+function readDeepLinkChoice(): string {
+  try {
+    return localStorage.getItem('WALLETCONNECT_DEEPLINK_CHOICE') ?? 'none';
+  } catch {
+    return 'unreadable';
+  }
+}
 
 export interface WalletSignerProps {
   password: string;
@@ -163,6 +179,14 @@ export default function WalletSigner({
   }, []);
   useRelayWake(wallet.provider ?? universalProvider);
 
+  // Every state flip AppKit reports, timestamped against the last return to this tab: the raw material for
+  // finding where the seconds go between "I approved in the wallet" and "the page noticed".
+  useEffect(() => {
+    diag(
+      `[wallet] connected=${wallet.connected} connecting=${wallet.connecting} account=${wallet.account ? 'yes' : 'no'} provider=${wallet.provider ? 'yes' : 'no'} relay=${String(isRelayConnected(wallet.provider ?? universalProvider))}`,
+    );
+  }, [wallet.connected, wallet.connecting, wallet.account, wallet.provider, universalProvider]);
+
   // The parent swaps the password field for a spinner while we are busy. `readyToSign` is NOT busy — the user
   // has to see the button to press it — so it deliberately does not count.
   useEffect(() => {
@@ -200,7 +224,7 @@ export default function WalletSigner({
     const onVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
       if (!wentToWalletRef.current) return;
-      console.log('[sign] back on this page with the request still out — the wallet showed nothing');
+      diag('[sign] back on this page with the request still out — the wallet showed nothing');
       setWalletShowedNothing(true);
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -215,7 +239,7 @@ export default function WalletSigner({
     if (!awaitingConnectionRef.current) return;
     if (!wallet.connected || !wallet.account || !wallet.provider) return;
     awaitingConnectionRef.current = false;
-    console.log('Wallet connected after modal — waiting for the sign tap');
+    diag('[wallet] session connected after the chooser — waiting for the sign tap');
     setPhase('readyToSign');
   }, [wallet.connected, wallet.account, wallet.provider]);
 
@@ -237,7 +261,7 @@ export default function WalletSigner({
     const { wallet: w, password: pwd } = latest.current;
     // Not connected yet: open the chooser and stop. The signature needs its own tap (file header).
     if (!w.connected || !w.account) {
-      console.log('Wallet not connected, opening AppKit modal...');
+      diag('[wallet] not connected — opening the chooser');
       awaitingConnectionRef.current = true;
       setPhase('connecting');
       try {
@@ -256,6 +280,10 @@ export default function WalletSigner({
     cancelledRef.current = false;
     setPhase('signing');
     setRequestLink(null);
+    const signStartedAt = Date.now();
+    diag(
+      `[sign] tap — relay=${String(isRelayConnected(w.provider))} deeplinkChoice=${readDeepLinkChoice()} activation=${userActivation()}`,
+    );
     // Hold WalletConnect's own app-switch back so it cannot cut the publish off mid-flight, then hop ourselves
     // once the relay has acknowledged the request. Both are no-ops for an extension wallet, which never leaves
     // the page. See walletRedirect.ts for what goes wrong without this.
@@ -264,6 +292,9 @@ export default function WalletSigner({
     let settled = false;
     const unsubscribe = onceSessionRequestSent(w.provider, (event) => {
       const link = requestLinkFrom(capture, href, event);
+      diag(
+        `[sign] request on the relay after ${Date.now() - signStartedAt}ms — id=${event.id} captured=${capture.captured() ? 'yes' : 'no'} sawOpen=${capture.sawOpen()} link=${link ?? 'NONE'}`,
+      );
       if (!link) return;
       setRequestLink(link);
       // `session_request_sent` is not a success signal — the engine emits it even when the publish REJECTED
@@ -273,7 +304,7 @@ export default function WalletSigner({
       // transient user activation, which is measured in seconds.
       setTimeout(() => {
         if (settled) {
-          console.log('[sign] not opening the wallet: the request already settled');
+          diag('[sign] not opening the wallet: the request already settled');
           return;
         }
         // With the socket down the request is not on the relay, whatever the publish reported — the engine
@@ -281,7 +312,7 @@ export default function WalletSigner({
         // its splash screen with nothing to show. Wake the socket instead and leave the user here, where the
         // button and the hint are.
         if (isRelayConnected(latest.current.wallet.provider) === false) {
-          console.log('[sign] not opening the wallet: relay socket is down, waking it instead');
+          diag('[sign] not opening the wallet: relay socket is down, waking it instead');
           wakeRelay(latest.current.wallet.provider);
           return;
         }
@@ -291,22 +322,23 @@ export default function WalletSigner({
         // remaining case is a navigation in a shape we did not recognise: the wallet is already in front, and
         // hopping again would bounce the user twice.
         if (capture.captured() || !capture.sawOpen()) {
-          console.log('[sign] opening the wallet on the request:', link);
+          diag(`[sign] opening the wallet on the request: ${link} activation=${userActivation()}`);
           wentToWalletRef.current = true;
           hopToWallet(link);
         } else {
-          console.log('[sign] not opening the wallet: something already navigated');
+          diag('[sign] not opening the wallet: something already navigated');
         }
       }, 0);
     });
     try {
       if (!w.provider) throw new Error('Provider not available');
       const signature = await signChainCode(w.provider, w.account, pwd);
+      diag(`[sign] signature arrived ${Date.now() - signStartedAt}ms after the tap`);
       if (cancelledRef.current) throw new Error('Cancelled by user');
       latest.current.onSignature(signature);
       setPhase('idle');
     } catch (err) {
-      console.log(err);
+      diag('[sign] failed:', err);
       setPhase('idle');
       latest.current.onError(err);
     } finally {
@@ -345,7 +377,7 @@ export default function WalletSigner({
   const openWallet = useCallback(() => {
     const link = requestLinkRef.current ?? connectedWalletLink(latest.current.wallet.provider);
     if (!link) return;
-    console.log('[sign] opening the wallet by hand:', link);
+    diag(`[sign] opening the wallet by hand: ${link} activation=${userActivation()}`);
     wentToWalletRef.current = true;
     hopToWallet(link);
   }, []);
