@@ -389,16 +389,17 @@ describe('LinkPassword', () => {
     expect(linking.assign).not.toHaveBeenCalled();
   });
 
-  it('wallet path: coming back with the request unanswered says so at once, and drops the request id', async () => {
+  it('wallet path: coming back with the request unanswered says so at once, and keeps the request id', async () => {
     // The field report: MetaMask on Android wedges on its splash screen on the first hop after connecting,
-    // every time, and only a force-quit clears it. Retried from a real tap, same URL, it hangs the same way —
-    // so the fault is inside the wallet, not in how the page navigates.
+    // every time, and only a force-quit clears it. Retried from a real tap it hangs the same way, and so does
+    // a retry that sends the bare scheme instead of the request link — so the wallet deadlocks on being
+    // resumed by a deep link at all, and no URL this page can produce avoids it.
     //
-    // Two things follow, and this covers both. Returning to this page with the request still out is proof the
-    // wallet showed nothing, so the recovery hint belongs on screen NOW rather than when a 12s timer that ran
-    // while the user was inside the wallet finally expires. And the next tap must not repeat the link that
-    // just failed: `…/wc?requestId=` is what puts the wallet into the route that waits for a request it never
-    // received, so the retry asks only for the app.
+    // What is left is speed and honesty. Returning to this page with the request still out is proof the wallet
+    // showed nothing, so the recovery hint belongs on screen NOW rather than when a 12s timer that ran while
+    // the user was inside the wallet finally expires. The link itself does not change: the request-scoped one
+    // is correct for the case that does work — a cold wallet, where it surfaces this prompt rather than the
+    // home screen.
     const user = userEvent.setup();
     vi.mocked(linking.assign).mockClear();
     const listeners = new Set<(payload: unknown) => void>();
@@ -440,7 +441,7 @@ describe('LinkPassword', () => {
 
       vi.mocked(linking.assign).mockClear();
       await user.click(screen.getByTestId('open-wallet'));
-      expect(linking.assign).toHaveBeenCalledWith('metamask://');
+      expect(linking.assign).toHaveBeenCalledWith('metamask://wc?requestId=42&sessionTopic=topic-1');
 
       // The request was never abandoned: a signature approved after all this still lands.
       await act(async () => {
