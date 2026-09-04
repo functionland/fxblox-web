@@ -22,6 +22,15 @@ vi.mock('@/platform/bluetooth', async (importOriginal) => {
 vi.mock('@/services/setupDiscovery', () => ({
   discoverUnownedBloxes: vi.fn(),
 }));
+// The last test here navigates on to Set authorizer, which calls `initFula` on mount to mint the app peer id.
+// Left real, that boots an actual libp2p node inside jsdom, and its `it-queue` timers outlive the test: one of
+// them then dispatches an Event from Node's realm into a torn-down jsdom EventTarget, which Vitest reports as
+// an unhandled error and fails the run — roughly one full-suite run in three, on CI and on `main`. Every
+// sibling setup test already stubs this; this file was the one that did not.
+vi.mock('@/utils/helper', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/helper')>();
+  return { ...actual, initFula: vi.fn(async () => '12D3KooWAppPeer'.padEnd(52, 'A')) };
+});
 
 import { API_URL } from '@/api';
 import { BleRegistry } from '@/platform/bluetooth';
