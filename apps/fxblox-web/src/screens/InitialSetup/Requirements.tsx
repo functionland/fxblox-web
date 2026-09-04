@@ -11,8 +11,11 @@
  *
  *   Browser      only when NOT Chromium — the one thing the user cannot fix from here, so it is a warning.
  *                On Chromium it renders nothing: the check passed, saying so is noise.
- *   Camera       only when not granted. Optional (QR pairing; pasting the code always works), so it never
- *                blocks Continue.
+ *   Camera       not asked for at all. Nothing in setup uses a camera. The app's only QR scanner is Auto-Pin
+ *                pairing, in Settings, long after this screen is done with — and that dialog raises the
+ *                browser prompt itself when it opens, which is the moment the request explains itself. Asking
+ *                here spent one of the handful of permission decisions a user will grant on a feature they had
+ *                not met yet, on the screen whose whole premise is to say nothing when there is nothing to do.
  *   Local network  only when explicitly DENIED. It cannot be re-prompted from JS once refused, so this is the
  *                one case a settings link genuinely helps. In the normal `prompt` state nothing is shown:
  *                Chrome asks at the moment of first contact, and `LanErrorCard` on the connect screens owns
@@ -22,7 +25,7 @@
  *                flag and absent on stock Chrome), so any status here would be a guess, and the next screens
  *                already offer "Connect via Bluetooth" as a real button.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FxBox, FxButton, FxCopyButton, FxDropdown, FxText } from '@functionland/fx-ui';
 import { paths } from '@/app/paths';
@@ -31,11 +34,6 @@ import { SetupScreen } from '@/components/setup/SetupScreen';
 import { useAppNavigate } from '@/hooks/useAppNavigate';
 import { changeLanguage, SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n';
 import { detectBrowserSupport } from '@/platform/browserSupport';
-import {
-  cameraPermissionState,
-  requestCameraPermission,
-  type CameraPermission,
-} from '@/platform/cameraPermission';
 import { lnaPermissionState, type LnaPermissionState } from '@/platform/lanHttp';
 import { CHROME_LNA_SETTINGS_URL } from '@/platform/linking';
 
@@ -78,37 +76,20 @@ export default function Requirements() {
   const { t, i18n } = useTranslation();
   const { navigate, back } = useAppNavigate();
   const [lna, setLna] = useState<LnaPermissionState | null>(null);
-  const [camera, setCamera] = useState<CameraPermission>('pending');
-  const [askingCamera, setAskingCamera] = useState(false);
-  const [cameraRefused, setCameraRefused] = useState(false);
 
   useEffect(() => {
     let alive = true;
     void lnaPermissionState().then((s) => alive && setLna(s));
-    void cameraPermissionState().then((s) => alive && setCamera(s));
     return () => {
       alive = false;
     };
-  }, []);
-
-  const onAllowCamera = useCallback(async () => {
-    setAskingCamera(true);
-    setCameraRefused(false);
-    try {
-      const next = await requestCameraPermission();
-      setCamera(next);
-      setCameraRefused(next !== 'granted');
-    } finally {
-      setAskingCamera(false);
-    }
   }, []);
 
   const support = detectBrowserSupport();
   // Only a definite refusal is actionable: `prompt` is the normal pre-first-contact state and Chrome raises
   // the dialog itself at that moment.
   const lnaBlocked = lna === 'denied';
-  const cameraAskable = camera === 'prompt' || camera === 'denied';
-  const nothingToDo = support.chromium && !lnaBlocked && !cameraAskable;
+  const nothingToDo = support.chromium && !lnaBlocked;
 
   const languageOptions = SUPPORTED_LANGUAGES.map((code) => ({
     label: t(`shell.language.${code}`),
@@ -148,30 +129,6 @@ export default function Requirements() {
                 label={t('setup.common.copy')}
                 copiedLabel={t('setup.common.copied')}
               />
-            </FxBox>
-          </IssueCard>
-        )}
-
-        {cameraAskable && (
-          <IssueCard
-            testID="requirement-camera"
-            title={t('setup.requirements.camera.title')}
-            body={t('setup.requirements.camera.optional')}
-          >
-            <FxBox alignItems="flex-start" gap="8">
-              <FxButton
-                size="small"
-                loading={askingCamera}
-                onPress={() => void onAllowCamera()}
-                testID="camera-allow"
-              >
-                {t('setup.requirements.camera.allow')}
-              </FxButton>
-              {cameraRefused && (
-                <FxText variant="bodyXSRegular" color="content3" testID="camera-refused">
-                  {t('setup.requirements.camera.refused')}
-                </FxText>
-              )}
             </FxBox>
           </IssueCard>
         )}

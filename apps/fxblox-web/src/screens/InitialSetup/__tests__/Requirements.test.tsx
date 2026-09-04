@@ -26,12 +26,10 @@ function stubChromium(isChromium: boolean) {
 
 /** jsdom has no Permissions/mediaDevices; install just enough to drive each state. */
 function stubBrowser({
-  camera,
   lna,
   hasCamera = true,
   chromium = true,
 }: {
-  camera?: PermissionState;
   lna?: PermissionState;
   hasCamera?: boolean;
   chromium?: boolean;
@@ -41,7 +39,6 @@ function stubBrowser({
     configurable: true,
     value: {
       query: vi.fn(async ({ name }: { name: string }) => {
-        if (name === 'camera') return { state: camera ?? 'granted' };
         if (name === 'local-network-access') return { state: lna ?? 'granted' };
         throw new Error(`unexpected permission ${name}`);
       }),
@@ -61,7 +58,7 @@ describe('Requirements', () => {
   beforeEach(() => resetStores());
 
   it('says nothing to do when the browser is healthy, and continues to Link password', async () => {
-    stubBrowser({ camera: 'granted', lna: 'granted' });
+    stubBrowser({ lna: 'granted' });
     const { router } = await renderSetupAt('/setup/requirements');
     expect(await screen.findByRole('heading', { name: 'Before you start' })).toBeInTheDocument();
 
@@ -80,35 +77,24 @@ describe('Requirements', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/setup/link-password'));
   });
 
-  it('offers a button when the camera has not been granted — not a paragraph about it', async () => {
-    stubBrowser({ camera: 'prompt', lna: 'granted' });
+  it('never asks for the camera — nothing in setup uses one', async () => {
+    // The camera is only for Auto-Pin QR pairing, which lives in Settings and raises its own prompt when the
+    // scanner opens. Asking here spent a permission decision on a feature the user had not met yet, and put a
+    // camera request in front of someone who came to set up a Blox.
+    stubBrowser({ lna: 'granted' });
     await renderSetupAt('/setup/requirements');
-    const button = await screen.findByTestId('camera-allow');
+    await screen.findByTestId('requirements-ok');
 
-    await userEvent.click(button);
-
-    // Granting removes the card entirely: nothing left to do, nothing left to say.
-    await waitFor(() => expect(screen.queryByTestId('requirement-camera')).toBeNull());
-    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalled();
-  });
-
-  it('a refused camera says so honestly and keeps setup moving (it is optional)', async () => {
-    stubBrowser({ camera: 'prompt', lna: 'granted' });
-    (navigator.mediaDevices.getUserMedia as ReturnType<typeof vi.fn>).mockRejectedValue(
-      Object.assign(new Error('denied'), { name: 'NotAllowedError' }),
-    );
-    const { router } = await renderSetupAt('/setup/requirements');
-
-    await userEvent.click(await screen.findByTestId('camera-allow'));
-    await screen.findByTestId('camera-refused');
-
-    // Optional means optional — Continue still works.
-    await userEvent.click(screen.getByTestId('setup-continue'));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/setup/link-password'));
+    expect(screen.queryByTestId('requirement-camera')).toBeNull();
+    expect(screen.queryByTestId('camera-allow')).toBeNull();
+    expect(navigator.mediaDevices.getUserMedia).not.toHaveBeenCalled();
+    // Not even silently queried: a permissions.query for 'camera' would throw in stubBrowser above.
+    const query = navigator.permissions.query as ReturnType<typeof vi.fn>;
+    expect(query.mock.calls.flat()).not.toContainEqual(expect.objectContaining({ name: 'camera' }));
   });
 
   it('shows the settings path only when local network access is actually BLOCKED', async () => {
-    stubBrowser({ camera: 'granted', lna: 'denied' });
+    stubBrowser({ lna: 'denied' });
     await renderSetupAt('/setup/requirements');
     await screen.findByTestId('requirement-lna');
     expect(
@@ -119,14 +105,14 @@ describe('Requirements', () => {
   it('stays silent about local network access in the normal "will ask" state', async () => {
     // `prompt` is the state before first contact. Chrome raises its own dialog at that moment, and the
     // connect screens own the retry — so surfacing anything here would be noise the user cannot act on.
-    stubBrowser({ camera: 'granted', lna: 'prompt' });
+    stubBrowser({ lna: 'prompt' });
     await renderSetupAt('/setup/requirements');
     await screen.findByTestId('requirements-ok');
     expect(screen.queryByTestId('requirement-lna')).toBeNull();
   });
 
   it('warns — and only then — when the browser is not Chromium', async () => {
-    stubBrowser({ camera: 'granted', lna: 'granted', chromium: false });
+    stubBrowser({ lna: 'granted', chromium: false });
     await renderSetupAt('/setup/requirements');
     await screen.findByTestId('requirement-browser');
     // The warning replaces the all-clear rather than sitting beside it.
