@@ -44,12 +44,6 @@
         "body": "Local network access is needed to reach your Blox.",
         "blocked": "This site isn't allowed to reach devices on your network, so it can't find your Blox. Turn it back on at the address below, then reload this page."
       },
-      "camera": {
-        "title": "Camera",
-        "optional": "Only needed if you want to scan a pairing QR code. You can always type the code instead.",
-        "allow": "Allow camera",
-        "refused": "Your browser didn't allow it. You can still type the pairing code instead, or turn the camera on later in your browser's site settings."
-      },
       "language": "Language",
       "continue": "Continue"
     },
