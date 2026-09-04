@@ -20,6 +20,15 @@ vi.mock('@/app/bootstrap', () => ({
     return boot.current!.promise;
   },
 }));
+// Landing on /blox mounts the main shell, whose `useEnsureFulaClient` calls `initFula` for the current Blox.
+// Left real, that boots an actual libp2p node inside jsdom — seconds of work that these routing tests never
+// look at, and whose timers outlive the test (see ConnectToBlox.test.tsx for the unhandled-error shape). It
+// is also why "set up → / lands on /blox" was the one test in the suite that failed under full-suite load
+// while passing alone: the route waited on a libp2p boot that nothing here needed.
+vi.mock('@/utils/helper', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/helper')>();
+  return { ...actual, initFula: vi.fn(async () => '12D3KooWAppPeer'.padEnd(52, 'A')) };
+});
 
 import { TestProviders } from '@/test/helpers/renderWithProviders';
 import { buildAppRoutes } from '@/app/routes/appRoutes';
