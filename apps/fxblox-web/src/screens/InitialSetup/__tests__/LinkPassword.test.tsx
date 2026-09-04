@@ -20,6 +20,8 @@ const wallet = vi.hoisted(() => ({
     initAppKit: vi.fn(),
     setAppKitTheme: vi.fn(),
     disconnectWallet: vi.fn(async () => undefined),
+    // No AppKit instance in these tests: the relay wake falls back to `wallet.provider`, as it did before.
+    getAppKit: vi.fn(() => null),
   },
 }));
 

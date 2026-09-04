@@ -43,7 +43,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FxBox, FxButton, FxSpinner, FxText } from '@functionland/fx-ui';
 import { useColorMode } from '@/stores/useSettingsStore';
-import { setAppKitTheme } from '@/wallet/appkit';
+import { getAppKit, setAppKitTheme } from '@/wallet/appkit';
 import { signChainCode } from '@/wallet/signChainCode';
 import { connectedWalletLink } from '@/wallet/walletLink';
 import {
@@ -145,7 +145,23 @@ export default function WalletSigner({
   // Coming back from the wallet lands on a socket Android killed while we were backgrounded. Reconnect it now
   // rather than waiting out the library's backoff, which is the several seconds of "connecting" a user sees
   // after they have already approved.
-  useRelayWake(wallet.provider);
+  //
+  // `wallet.provider` is only set once a session EXISTS (`ProviderController.setProvider` runs on connect), so
+  // for the connect round-trip itself — the first, and the one every user makes — it is undefined and the wake
+  // had nothing to act on. The socket that the approval has to arrive over lives on AppKit's UniversalProvider,
+  // which exists from the moment the chooser opens; ask AppKit for it directly.
+  const [universalProvider, setUniversalProvider] = useState<unknown>(undefined);
+  useEffect(() => {
+    let alive = true;
+    void getAppKit()
+      ?.getUniversalProvider()
+      .then((p) => alive && setUniversalProvider(p))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  useRelayWake(wallet.provider ?? universalProvider);
 
   // The parent swaps the password field for a spinner while we are busy. `readyToSign` is NOT busy — the user
   // has to see the button to press it — so it deliberately does not count.
