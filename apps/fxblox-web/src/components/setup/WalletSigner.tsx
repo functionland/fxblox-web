@@ -26,12 +26,15 @@
  * ## And the wallet can still hang, for a reason that is not ours
  *
  * A later report: MetaMask on Android wedges on its splash screen on the first hop after connecting, every
- * time, and recovers only once it is force-quit and reopened. Asked to retry WITHOUT force-quitting — the same
- * URL, from a real tap, so user activation cannot be the difference — the user reports it hangs just the same.
- * A cold wallet works; a warm one does not, whatever this page does. So the fault is inside the wallet, and the
- * only levers here are (a) not repeating a hop that has already been shown not to work — see `openWallet` — and
- * (b) telling the user what happened the moment they come back, rather than on a timer that runs out while they
- * are still staring at the wallet.
+ * time, and recovers only once it is force-quit and reopened. Two things were then tried on the phone. A retry
+ * from a real tap, same URL — hangs. A retry sending the bare `metamask://` instead of the request link, so the
+ * wallet is asked only to come to the front — hangs too. A cold wallet works; a warm one does not, whatever
+ * this page sends it.
+ *
+ * So the wallet deadlocks on being resumed by a deep link, and there is no URL that avoids it. Nothing here can
+ * fix that. What is left is to be quick and honest about it: tell the user the moment they come back, rather
+ * than on a timer that runs out while they are still staring at the wallet, and name the one step that
+ * actually works instead of offering a retry that does not.
  *
  * `signChainCode()` stays byte-identical to mobile: the signature seeds the DID secret key, so a changed byte
  * means web and mobile derive different identities from the same password and wallet.
@@ -122,12 +125,10 @@ export default function WalletSigner({
   const [phase, setPhase] = useState<SignerPhase>('idle');
   const [showNudge, setShowNudge] = useState(false);
   const [showStuckHint, setShowStuckHint] = useState(false);
-  // Have we sent them into the wallet for THIS request, and did they come back with it still unanswered?
-  // Mirrored into refs for the stable tap handler below.
+  // Have we sent them into the wallet for THIS request (a ref: the stable tap handler below writes it), and
+  // did they come back with it still unanswered?
   const wentToWalletRef = useRef(false);
   const [walletShowedNothing, setWalletShowedNothing] = useState(false);
-  const walletShowedNothingRef = useRef(false);
-  walletShowedNothingRef.current = walletShowedNothing;
   // Set once the request is on the relay: the deep link that opens the wallet ON this request, rather than on
   // its home screen. Mirrored into a ref for the stable tap handler below.
   const [requestLink, setRequestLink] = useState<string | null>(null);
@@ -311,31 +312,22 @@ export default function WalletSigner({
    * Scheme-aware — see `hopToWallet` in walletRedirect.ts for why an https universal link must not go through
    * `assign`.
    *
-   * ## Why a second attempt drops the request id
+   * ## What this cannot do, and does not pretend to
    *
-   * `…/wc?requestId=` is the right link the first time: it is what makes the wallet surface THIS prompt rather
-   * than its home screen. But once the user has been there and come back empty-handed, sending the same link
-   * again is sending them back into the thing that just failed.
+   * A previous version dropped the request id on a second attempt, on the theory that `…/wc?requestId=` was
+   * what wedged MetaMask — that it put the wallet into a route waiting for a request to arrive over its own
+   * Android-suspended socket, and that a bare `metamask://` would merely resume the app instead.
    *
-   * The field report is MetaMask on Android sitting on its splash screen, every time, on the first hop after
-   * the connect — and recovering only after the wallet is force-quit and reopened. A cold wallet works; a warm
-   * one does not. The likeliest reading is that `…/wc?requestId=` puts MetaMask into the route that WAITS for
-   * that request to arrive over its OWN relay socket — the socket Android suspended while it sat in the
-   * background — and that wait is the full-screen "splash" the user is stuck on. Nothing on a web page can
-   * reach into another app and reconnect its socket.
+   * Tested on the reporter's phone, that is wrong. A warm MetaMask sits on its splash screen for the bare
+   * scheme exactly as it does for the request link. The wallet deadlocks on being resumed by a deep link at
+   * all, and no URL a web page can produce avoids it; only force-quitting and reopening clears it.
    *
-   * What a page CAN do is stop asking for the part that hangs. The bare scheme requests nothing but the app
-   * itself, so a wallet that did receive the request shows it (a session request is modal wherever you are),
-   * and a wallet that did not at least comes up usable instead of wedged. It is strictly a fallback: this only
-   * runs after the request-scoped link has already been tried and produced nothing.
-   *
-   * `walletStuckHint` has to name this one FIRST, before the force-quit. A user who kills the wallet on the
-   * way past never reaches this branch — a cold wallet handles `…/wc?requestId=` perfectly well — so a hint
-   * that led with "close it from your recent apps" would route every user around the cheaper fix.
+   * So the link never changes. Always the request-scoped one, which is the correct link for the case that does
+   * work — a cold wallet, where it surfaces THIS prompt rather than the home screen. The recovery is a thing
+   * the user has to do, and `walletStuckHint` says so plainly rather than offering a retry that will not help.
    */
   const openWallet = useCallback(() => {
-    const bare = connectedWalletLink(latest.current.wallet.provider);
-    const link = (walletShowedNothingRef.current ? bare : null) ?? requestLinkRef.current ?? bare;
+    const link = requestLinkRef.current ?? connectedWalletLink(latest.current.wallet.provider);
     if (!link) return;
     console.log('[sign] opening the wallet by hand:', link);
     wentToWalletRef.current = true;
