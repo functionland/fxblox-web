@@ -42,6 +42,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FxBox, FxButton, FxSpinner, FxText } from '@functionland/fx-ui';
+import { useLogger } from '@/hooks/useLogger';
 import { useColorMode } from '@/stores/useSettingsStore';
 import { getAppKit, setAppKitTheme } from '@/wallet/appkit';
 import { diag } from '@/wallet/diag';
@@ -150,9 +151,12 @@ export default function WalletSigner({
   const [requestLink, setRequestLink] = useState<string | null>(null);
   const requestLinkRef = useRef<string | null>(null);
   requestLinkRef.current = requestLink;
+  // Debug mode turns the automatic app-switch off — see the hop below for why that is a diagnostic, not a feature.
+  const { isDebugModeEnable: debug } = useLogger();
+  const [hopSkippedForDebug, setHopSkippedForDebug] = useState(false);
   // Latest props / wallet state for the stable callbacks below (the mobile effects closed over stale state).
-  const latest = useRef({ password, onLinkingChange, onPhaseChange, onSignature, onError, wallet });
-  latest.current = { password, onLinkingChange, onPhaseChange, onSignature, onError, wallet };
+  const latest = useRef({ password, onLinkingChange, onPhaseChange, onSignature, onError, wallet, debug });
+  latest.current = { password, onLinkingChange, onPhaseChange, onSignature, onError, wallet, debug };
 
   useEffect(() => {
     setAppKitTheme(mode);
@@ -199,6 +203,7 @@ export default function WalletSigner({
       setShowNudge(false);
       setShowStuckHint(false);
       setWalletShowedNothing(false);
+      setHopSkippedForDebug(false);
       wentToWalletRef.current = false;
       return undefined;
     }
@@ -322,6 +327,17 @@ export default function WalletSigner({
         // remaining case is a navigation in a shape we did not recognise: the wallet is already in front, and
         // hopping again would bounce the user twice.
         if (capture.captured() || !capture.sawOpen()) {
+          // Debug mode: leave the wallet alone. Every retry so far went into a MetaMask that the FIRST hop had
+          // already wedged on its splash screen, so none of them tested whether the deep link itself is what
+          // wedges a healthy warm wallet — while the one recovery the logs show working was a cold MetaMask
+          // picking the request up with no deep link at all. With the request on the relay and no hop, the
+          // user can switch to the wallet by hand and see what it shows; the button is still there for the
+          // deep link afterwards. Debug mode is an explicit opt-in used for exactly this kind of report.
+          if (latest.current.debug) {
+            diag('[sign] debug mode: NOT opening the wallet — switch to it by hand, or tap the button');
+            setHopSkippedForDebug(true);
+            return;
+          }
           diag(`[sign] opening the wallet on the request: ${link} activation=${userActivation()}`);
           wentToWalletRef.current = true;
           hopToWallet(link);
@@ -400,6 +416,11 @@ export default function WalletSigner({
       {(showStuckHint || walletShowedNothing) && walletLink && (
         <FxText variant="bodyXSRegular" color="content2" textAlign="center" testID="wallet-stuck-hint">
           {t('setup.linkPassword.walletStuckHint')}
+        </FxText>
+      )}
+      {hopSkippedForDebug && (
+        <FxText variant="bodyXSRegular" color="warningBase" textAlign="center" testID="debug-no-auto-open">
+          {t('setup.linkPassword.debugNoAutoOpen')}
         </FxText>
       )}
       {showOpenWallet && walletLink && (
