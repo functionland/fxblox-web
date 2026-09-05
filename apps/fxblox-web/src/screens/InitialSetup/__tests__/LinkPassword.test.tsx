@@ -52,6 +52,7 @@ vi.mock('@/platform/linking', async (importOriginal) => {
 });
 
 import { WALLET_NUDGE_MS, WALLET_STUCK_MS } from '@/components/setup/WalletSigner';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUserProfileStore } from '@/stores/useUserProfileStore';
 import * as linking from '@/platform/linking';
 import * as secureStore from '@/platform/secureStore';
@@ -452,6 +453,57 @@ describe('LinkPassword', () => {
       await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xlate'));
     } finally {
       visibility.mockRestore();
+    }
+  });
+
+  it('wallet path: in debug mode the request goes out but the wallet is NOT opened automatically', async () => {
+    // A diagnostic, not a feature. Every retry so far went into a wallet the first hop had already wedged, so
+    // nothing has tested whether the deep link itself wedges a healthy warm wallet. With the request on the
+    // relay and no hop, the user can switch to the wallet by hand and report what it shows; the button stays
+    // for the deep link afterwards.
+    const user = userEvent.setup();
+    vi.mocked(linking.assign).mockClear();
+    const listeners = new Set<(payload: unknown) => void>();
+    let approve: (sig: string) => void = () => undefined;
+    wallet.state.account = '0xABC';
+    wallet.state.connected = true;
+    wallet.state.provider = {
+      request: vi.fn(() => {
+        for (const fn of [...listeners])
+          fn({ topic: 'topic-1', request: {}, chainId: 'eip155:1', id: 42 });
+        return new Promise<string>((resolve) => (approve = resolve));
+      }),
+      session: { peer: { metadata: { redirect: { native: 'metamask://' } } } },
+      client: {
+        on: (_event: string, fn: (payload: unknown) => void) => listeners.add(fn),
+        off: (_event: string, fn: (payload: unknown) => void) => listeners.delete(fn),
+      },
+    } as never;
+    useSettingsStore.setState({
+      debugMode: { uniqueId: 'dbg', endDate: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+    });
+    try {
+      await renderSetupAt('/setup/link-password');
+      await fillPasswordAndConsent(user);
+      await user.click(await screen.findByTestId('sign-with-wallet'));
+
+      // Past the macrotask the hop is deferred by, so "not yet" cannot masquerade as "never".
+      expect(await screen.findByTestId('debug-no-auto-open')).toBeInTheDocument();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(linking.assign).not.toHaveBeenCalled();
+
+      // The deep link is still one tap away.
+      await user.click(screen.getByTestId('open-wallet'));
+      expect(linking.assign).toHaveBeenCalledWith('metamask://wc?requestId=42&sessionTopic=topic-1');
+
+      await act(async () => {
+        approve('0xlate');
+      });
+      await waitFor(() => expect(useUserProfileStore.getState().signiture).toBe('0xlate'));
+    } finally {
+      useSettingsStore.setState({ debugMode: undefined });
     }
   });
 

@@ -59,7 +59,8 @@
       "walletConnectedTapSign": "Wallet connected. Tap below to approve the signature — this opens your wallet again.",
       "approveInWallet": "Approve the request in your wallet…",
       "walletStuckHint": "Wallet opened but stuck on its splash screen? Close it completely from your recent apps, then tap Open wallet to approve again — tapping without closing it first will not help. Your request stays valid. If this happens every time, Android is restricting the wallet in the background: set MetaMask and your browser to Unrestricted under Settings → Apps → (app) → Battery, and it stops.",
-      "openWalletToApprove": "Open wallet to approve"
+      "openWalletToApprove": "Open wallet to approve",
+      "debugNoAutoOpen": "Debug mode: the wallet was not opened automatically. The request is waiting on the relay — switch to your wallet from your recent apps and note what it shows, or tap Open wallet to approve."
     },
     "connectToBlox": {
       "intro": "Turn your Blox on, then connect to it with Bluetooth. We'll suggest other ways if that doesn't work.",
