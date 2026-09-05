@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BACKGROUND_STINT_MS, useRelayWake, wakeRelay, WAKE_TIMEOUT_MS } from '../relayWake';
+import { BACKGROUND_STINT_MS, parkRelay, useRelayWake, wakeRelay, WAKE_TIMEOUT_MS } from '../relayWake';
 
 interface RelayerState {
   connected?: boolean;
@@ -10,6 +10,8 @@ interface RelayerState {
   /** Flip `connected` to true once `transportOpen` resolves, the way a healthy dial behaves. */
   opensSuccessfully?: boolean;
   withRestart?: boolean;
+  /** Expose `transportClose` — what parking on `hidden` calls. Off models a relayer without it. */
+  withClose?: boolean;
   /**
    * Expose `onProviderDisconnect` — the relayer's own "socket closed, dial a fresh one" path. `fresh` says
    * whether that fresh dial comes up (after a short delay, like the real 100 ms reconnect timer) or never.
@@ -24,9 +26,10 @@ function providerWithRelayer(state: RelayerState = {}) {
     wedged = false,
     opensSuccessfully = false,
     withRestart = true,
+    withClose = true,
     withFastDisconnect = false,
   } = state;
-  const relayer: Record<string, unknown> = { connected, connecting };
+  const relayer: Record<string, unknown> = { connected, connecting, provider: { socket: 'original' } };
   const transportOpen = vi.fn(() =>
     wedged
       ? new Promise<void>(() => undefined)
@@ -35,17 +38,30 @@ function providerWithRelayer(state: RelayerState = {}) {
         }),
   );
   const restartTransport = vi.fn(async () => {
+    relayer.provider = { socket: 'restarted' };
     relayer.connected = true;
   });
-  const onProviderDisconnect = vi.fn(async () => {
+  const transportClose = vi.fn(async () => {
     relayer.connected = false;
-    if (withFastDisconnect === 'fresh') setTimeout(() => (relayer.connected = true), 120);
+    relayer.connecting = false;
+  });
+  const onProviderDisconnect = vi.fn(async () => {
+    // The real one leaves the dead socket in place — still reporting OPEN — and dials a fresh one 100 ms
+    // later. 'never' models a dial that does not come up: the old socket keeps lying the whole time.
+    if (withFastDisconnect === 'fresh') {
+      setTimeout(() => {
+        relayer.provider = { socket: 'fresh' };
+        relayer.connected = true;
+      }, 120);
+    }
   });
   relayer.transportOpen = transportOpen;
+  if (withClose) relayer.transportClose = transportClose;
   if (withRestart) relayer.restartTransport = restartTransport;
   if (withFastDisconnect) relayer.onProviderDisconnect = onProviderDisconnect;
   return {
     transportOpen,
+    transportClose,
     restartTransport,
     onProviderDisconnect,
     relayer,
@@ -104,6 +120,8 @@ describe('wakeRelay', () => {
   });
 
   it('falls back to the polite restart when the fresh socket does not come up within the bound', async () => {
+    // The dead socket keeps reporting OPEN throughout ('never' leaves it in place), so a check on `connected`
+    // alone would declare victory at once. The reporter's log showed exactly that: "fresh socket up in 1ms".
     vi.useFakeTimers();
     const { provider, restartTransport, onProviderDisconnect, relayer } = providerWithRelayer({
       connected: true,
@@ -115,6 +133,7 @@ describe('wakeRelay', () => {
     expect(onProviderDisconnect).toHaveBeenCalledTimes(1);
     expect(restartTransport).toHaveBeenCalledTimes(1);
     expect(relayer.connected).toBe(true);
+    expect(relayer.provider).toEqual({ socket: 'restarted' });
   });
 
   it('after a background stint, a socket that is honestly down takes the normal path', async () => {
@@ -187,7 +206,44 @@ describe('wakeRelay', () => {
   });
 });
 
+describe('parkRelay', () => {
+  it('closes an open socket so nothing dials while the tab cannot reach the network', async () => {
+    const { provider, transportClose } = providerWithRelayer({ connected: true });
+    await parkRelay(provider);
+    expect(transportClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('also closes a socket mid-dial, so no pending attempt is left for the return to wait on', async () => {
+    const { provider, transportClose } = providerWithRelayer({ connecting: true });
+    await parkRelay(provider);
+    expect(transportClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a socket that is already down alone', async () => {
+    const { provider, transportClose } = providerWithRelayer();
+    await parkRelay(provider);
+    expect(transportClose).not.toHaveBeenCalled();
+  });
+
+  it('is inert for a wallet with no relay, and swallows a failed close', async () => {
+    await expect(parkRelay(undefined)).resolves.toBeUndefined();
+    const { provider, transportClose } = providerWithRelayer({ connected: true });
+    transportClose.mockRejectedValueOnce(new Error('already closing'));
+    await expect(parkRelay(provider)).resolves.toBeUndefined();
+  });
+});
+
 describe('useRelayWake', () => {
+  it('parks the socket the moment the tab goes hidden', () => {
+    // The reporter's log: 29 s in the wallet, the library dialling a dead network the whole time, and the
+    // return spent 8 s waiting on the backoff it had accrued. Close on the way out; nothing accrues.
+    const { provider, transportClose } = providerWithRelayer({ connected: true });
+    renderHook(() => useRelayWake(provider));
+    setVisibility('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(transportClose).toHaveBeenCalledTimes(1);
+  });
+
   it('wakes the socket when the tab comes back to the front', () => {
     const { provider, transportOpen } = providerWithRelayer();
     renderHook(() => useRelayWake(provider));
@@ -201,9 +257,38 @@ describe('useRelayWake', () => {
     expect(transportOpen).toHaveBeenCalledTimes(1);
   });
 
-  it('restarts a socket that claims to be open when the tab was away long enough to have been in a wallet', () => {
+  it('a trip to the wallet is: park on the way out, one clean dial on the way back', async () => {
+    // The whole point of parking. The socket was closed on `hidden`, so the return finds it honestly down and
+    // simply opens the transport — no restart, no waiting on a reconnect the library started in the dark.
     vi.useFakeTimers();
-    const { provider, restartTransport, transportOpen } = providerWithRelayer({ connected: true });
+    // `opensSuccessfully`: the single dial on the way back comes up, as it does on a working network.
+    const { provider, transportClose, transportOpen, restartTransport } = providerWithRelayer({
+      connected: true,
+      opensSuccessfully: true,
+    });
+    renderHook(() => useRelayWake(provider));
+
+    setVisibility('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(BACKGROUND_STINT_MS + 500);
+    expect(transportClose).toHaveBeenCalledTimes(1);
+
+    setVisibility('visible');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(transportOpen).toHaveBeenCalledTimes(1);
+    expect(restartTransport).not.toHaveBeenCalled();
+  });
+
+  it('without transportClose to park with, a socket still claiming OPEN on return is replaced', () => {
+    // A relayer shape without `transportClose` cannot be parked, so the socket comes back reporting OPEN
+    // after a real stint — the zombie case — and is replaced rather than believed.
+    vi.useFakeTimers();
+    const { provider, restartTransport, transportOpen } = providerWithRelayer({
+      connected: true,
+      withClose: false,
+    });
     renderHook(() => useRelayWake(provider));
 
     setVisibility('hidden');

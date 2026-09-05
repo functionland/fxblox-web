@@ -59,12 +59,40 @@
  * is Chrome's TCP stack, eventually, which is the several seconds of "Connecting Wallet…" a user watches
  * after they have already approved.
  *
- * So when the tab comes back from a real stint in the background, `readyState` is not asked. The transport
- * is restarted outright. `restartTransport()` tears the socket down, dials again, re-subscribes every topic,
- * and its subscriber then calls `batchFetchMessages` — which is precisely the fetch of whatever the wallet
- * published while we were dead. A socket that was in fact healthy pays one reconnect, well under a second on
- * a working network; a socket that was not pays nothing more than it already owed. A tab hidden for less than
- * `BACKGROUND_STINT_MS` is a flick between tabs, not a trip to a wallet, and is left alone.
+ * So when the tab comes back from a real stint in the background, `readyState` is not asked. A socket that
+ * claims OPEN is dropped for a fresh one — see `wakeRelay` for the two ways of doing that and why the fast one
+ * is preferred. A tab hidden for less than `BACKGROUND_STINT_MS` is a flick between tabs, not a trip to a
+ * wallet, and is left alone.
+ *
+ * ## Why the socket is closed on the way OUT, not only reopened on the way back
+ *
+ * A diagnostic log from the reporter's phone (build 7187fba) showed where the seconds actually went on the
+ * return from the connect approval. The socket was not a zombie. It was DOWN, with `connecting === true`:
+ *
+ *     [tab] visible after 28875ms hidden
+ *     [relay] socket is down (connecting=true) — opening the transport
+ *     [relay] transportOpen did not get the socket up within the bound — restarting the transport  (+2503ms)
+ *     [relay] transport restart finished in 8272ms, connected=true                                (+8273ms)
+ *     [wallet] connected=true                                                                      (+8651ms)
+ *
+ * What happened while the tab was hidden: Android took the network, the socket closed, and the library did
+ * what it does on a close — scheduled a reconnect, dialled, failed (no network), slept its backoff, dialled
+ * again, failed, slept longer. `connect()` retries five times with a sleep of `attempt` seconds between them.
+ * The tab came back in the middle of one of those sleeps, with `connectPromise` pending, and everything —
+ * the library's own `transportOpen()`, and every lever here — awaits that promise. Nothing can cancel a
+ * `setTimeout` inside the library. So the return paid the rest of the sleep, then one dial, plus 2.5 s of
+ * this code waiting for a promise that was never going to resolve inside the bound. Nine seconds, none of
+ * them a dial that reached the relay.
+ *
+ * The third return in the same log, which landed at a luckier point in the loop, took 1.5 s — and that is
+ * the floor: one dial on that network.
+ *
+ * So: the moment the tab goes hidden, `transportClose()`. It sets `transportExplicitlyClosed`, which is the
+ * one flag every auto-reconnect path checks first, so no dial is attempted while there is no network to dial
+ * on, no backoff accrues, and no promise is left pending for the return to trip over. `connect()` clears the
+ * flag on the way back in, so `transportOpen()` on `visible` is a single clean dial. The wallet's approval or
+ * signature, published while we were away, is queued by the relay against the topic and pushed on
+ * re-subscribe. Closing costs nothing the user can see: it happens while they are in the wallet.
  */
 import { useEffect, useRef } from 'react';
 import { diag, markReturn } from './diag';
@@ -98,7 +126,11 @@ interface RelayerLike {
   /** True only when the underlying socket's readyState is OPEN. */
   connected: boolean;
   connecting: boolean;
+  /** The JSON-RPC provider wrapping the current socket; a fresh dial replaces the object. */
+  provider?: unknown;
   transportOpen(): Promise<void>;
+  /** Closes the socket AND flags the transport explicitly closed, which suppresses every auto-reconnect. */
+  transportClose?(): Promise<void>;
   /** Present since core 2.x; guarded anyway so a shape change degrades to the polite path. */
   restartTransport?(): Promise<void>;
   /**
@@ -139,11 +171,32 @@ const settleAfter = (ms: number): Promise<void> =>
  * has no relay). Never rejects: a relay that cannot be reached is not something the caller can act on, and the
  * next real request reports it properly, with the context of what the user was trying to do.
  */
-/** Poll `connected` until it flips or the bound expires. */
-async function untilConnected(relayer: RelayerLike, boundMs: number): Promise<boolean> {
+/**
+ * Poll until a FRESH socket is up, or the bound expires.
+ *
+ * `connected` alone is not the test: the socket being replaced still reports OPEN (that is the whole problem),
+ * so it must be a new provider object AND open. Checking only the flag reported "fresh socket up in 1ms" on
+ * the reporter's phone — the same dead socket, congratulated.
+ */
+async function untilFreshSocket(relayer: RelayerLike, before: unknown, boundMs: number): Promise<boolean> {
   const deadline = Date.now() + boundMs;
-  while (!relayer.connected && Date.now() < deadline) await settleAfter(100);
-  return relayer.connected;
+  const fresh = () => relayer.connected && relayer.provider !== before;
+  while (!fresh() && Date.now() < deadline) await settleAfter(100);
+  return fresh();
+}
+
+/**
+ * The tab is going to the background: close the socket now, on purpose, so the library does not spend the
+ * stint dialling a network that is not there and leave a pending attempt for the return to wait on. File
+ * header, last section. Never rejects; nothing the caller can do about a close that fails.
+ */
+export async function parkRelay(provider: unknown): Promise<void> {
+  const relayer = relayerFrom(provider);
+  if (!relayer || typeof relayer.transportClose !== 'function') return;
+  if (!relayer.connected && !relayer.connecting) return;
+  const startedAt = Date.now();
+  await relayer.transportClose().catch(() => undefined);
+  diag(`[relay] parked the socket for the background in ${Date.now() - startedAt}ms`);
 }
 
 export async function wakeRelay(provider: unknown, opts: WakeRelayOptions = {}): Promise<void> {
@@ -165,8 +218,9 @@ export async function wakeRelay(provider: unknown, opts: WakeRelayOptions = {}):
     // up within the bound.
     if (typeof relayer.onProviderDisconnect === 'function') {
       diag('[relay] back from the background: socket claims OPEN — dropping it for a fresh one');
+      const before = relayer.provider;
       await relayer.onProviderDisconnect().catch(() => undefined);
-      if (await untilConnected(relayer, WAKE_TIMEOUT_MS)) {
+      if (await untilFreshSocket(relayer, before, WAKE_TIMEOUT_MS)) {
         diag(`[relay] fresh socket up in ${Date.now() - startedAt}ms`);
         return;
       }
@@ -207,6 +261,7 @@ export function useRelayWake(provider: unknown): void {
       if (document.visibilityState === 'hidden') {
         hiddenAt = Date.now();
         diag('[tab] hidden');
+        void parkRelay(latest.current);
         return;
       }
       if (document.visibilityState !== 'visible') return;

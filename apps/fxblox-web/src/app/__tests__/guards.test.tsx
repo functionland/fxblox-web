@@ -46,8 +46,14 @@ import { useBloxsStore, useUserProfileStore } from '@/stores';
  * slowly under a loaded full-suite run hit the TEST timeout before its 15 s `waitFor` could resolve — so the
  * wait could never actually be waited out, and the file failed roughly one run in two (on baseline too, not
  * only with changes). Giving the file room makes the route waits the thing that decides the outcome.
+ *
+ * 30 s, not 15: even with the real libp2p boot stubbed out (which was most of it), "/ lands on /blox" still
+ * missed a 15 s budget about one full-suite run in three, on CI and locally, with nothing else competing —
+ * the Blox screen's chunk is the largest in the app and Vitest transforms it in a worker that is sharing the
+ * machine with every other file. Alone it takes ~2.4 s. These tests assert which route matched, never how
+ * fast; a budget that a busy runner can miss turns them into a coin toss on every merge.
  */
-const ROUTE_TIMEOUT = 15_000;
+const ROUTE_TIMEOUT = 30_000;
 vi.setConfig({ testTimeout: ROUTE_TIMEOUT * 3 });
 
 function deferred(): Deferred {
