@@ -279,7 +279,7 @@ const DetailInfo = ({
             ],
             cancelText: t('main.common.ok'),
           });
-          if (choice === 'sales') openUrl('mailto:sales@fx.land', { newTab: false });
+          if (choice === 'sales') openUrl('https://github.com/functionland/fxblox-web/issues', { newTab: true });
           else if (choice === 'register') onRegisterBlox?.();
         } else {
           queueToast({ type: 'error', title: t('main.poolCard.joinFailedTitle'), message: errorMessage });

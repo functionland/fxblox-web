@@ -2,7 +2,7 @@
  * Port of apps/box/src/components/Cards/PoolCard.tsx. Same two-step join (1: Blox `joinPool`, 2: contract on
  * PC images / `pools.fx.land/join` otherwise), same persisted `joinState_*` keys (KV adapter), Re-send, the
  * 120 s safety timeout + Cancel, Cancel Request / Leave / Force Rejoin, and the 3-way "Blox Not Registered"
- * dialog (`choose()`; the mobile handlers were empty — on web "Contact Sales" opens mailto:sales@fx.land and
+ * dialog (`choose()`; the mobile handlers were empty — on web "Open a GitHub Issue" opens the repository issues page and
  * "Register Blox" goes to the Users tab). Adds "View details" (→ /settings/pools/:poolId) and a `selected`
  * ring for the desktop master-detail. The account comes from `useAccountWithFallback` (wallet, else the
  * manual-signature address) so manual-signature users can join through the join server, matching
@@ -43,7 +43,7 @@ import {
 } from './joinState';
 
 export const JOIN_TIMEOUT_MS = 120_000;
-export const SALES_MAILTO = 'mailto:sales@fx.land';
+export const SALES_MAILTO = 'https://github.com/functionland/fxblox-web/issues';
 
 export interface PoolCardProps extends Omit<FxCardProps, 'children' | 'onPress'> {
   pool: TPool;

@@ -191,7 +191,7 @@ describe('Pools', () => {
 
     const dialog = await screen.findByText('Blox Not Registered');
     expect(dialog).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Contact Sales' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open a GitHub Issue' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'OK' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Register Blox' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/users'));
