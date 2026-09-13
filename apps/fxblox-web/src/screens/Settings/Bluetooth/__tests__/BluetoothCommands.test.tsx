@@ -84,7 +84,7 @@ describe('BluetoothCommands', () => {
     // A skipCode command: confirm → executed directly, then the logs are refreshed.
     await user.click(screen.getByTestId('command-wireguard/start'));
     const confirmDialog = await screen.findByTestId('fx-confirm');
-    expect(confirmDialog).toHaveTextContent('Are you sure you want to execute SUPPORT ON?');
+    expect(confirmDialog).toHaveTextContent('Are you sure you want to execute TUNNEL ON?');
     await user.click(within(confirmDialog).getByRole('button', { name: 'Yes' }));
     await waitFor(() =>
       expect(ble.state!.written).toContain(`logs ${JSON.stringify({ exec: ['wireguard/start'] })}`),

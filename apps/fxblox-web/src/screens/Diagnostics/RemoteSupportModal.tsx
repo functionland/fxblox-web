@@ -1,4 +1,4 @@
-// Port of apps/box/src/screens/Diagnostics/RemoteSupportModal.tsx — security-code gate for "Enable remote support".
+// Port of apps/box/src/screens/Diagnostics/RemoteSupportModal.tsx — security-code gate for "Enable remote access".
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FxBox, FxButton, FxDialog, FxText, FxTextInput } from '@functionland/fx-ui';

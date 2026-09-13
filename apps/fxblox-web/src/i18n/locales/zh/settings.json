@@ -75,7 +75,7 @@
       "languageEn": "English",
       "languageZh": "中文 (Chinese)",
       "debugTitle": "调试模式",
-      "debugDescription": "启用日志以便支持团队排查问题",
+      "debugDescription": "启用日志以便排查问题",
       "preferBluetoothTitle": "优先使用蓝牙",
       "preferBluetoothDescription": "跳过本地网络（热点）连接，使用 Web 蓝牙进行 Blox 设置和命令。"
     },

@@ -75,7 +75,7 @@
       "languageEn": "English",
       "languageZh": "中文 (Chinese)",
       "debugTitle": "Debug mode",
-      "debugDescription": "Enable logs for troubleshooting by support team",
+      "debugDescription": "Enable logs for troubleshooting",
       "preferBluetoothTitle": "Prefer Bluetooth",
       "preferBluetoothDescription": "Skip the local-network (hotspot) connection and use Web Bluetooth for Blox setup and commands."
     },
