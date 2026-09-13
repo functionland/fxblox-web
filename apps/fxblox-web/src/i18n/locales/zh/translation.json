@@ -1,8 +1,8 @@
 {
   "welcome": {
-    "title": "你好，Functionlander！",
+    "title": "你好！",
     "appTitle": "Blox 应用",
-    "disclaimer": "使用本产品即表示您同意 fx.land/terms 上的条款和条件，并且不会因数据丢失而追究 Functionland 的责任。",
+    "disclaimer": "本应用是基于 MIT 许可证的开源软件。您自行承担使用风险，不会因数据丢失而追究任何实体或贡献者的责任。",
     "termsButton": "条款和条件",
     "setupButton": "同意并设置我的 Blox"
   },

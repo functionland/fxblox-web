@@ -39,4 +39,4 @@ Pushes to `main` build and deploy to GitHub Pages (`.github/workflows/deploy.yml
 
 Some features need Blox firmware / relay changes that ship via OTA — see `docs/FIRMWARE-COMPAT.md`. The app feature-detects and shows an "update your Blox" banner until they land.
 
-The full implementation plan lives in the Functionland planning notes (`i-want-to-design-federated-fox.md`); `docs/ARCHITECTURE.md` is the condensed version.
+The full implementation plan lives in the project planning notes (`i-want-to-design-federated-fox.md`); `docs/ARCHITECTURE.md` is the condensed version.

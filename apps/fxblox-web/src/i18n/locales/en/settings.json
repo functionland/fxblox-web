@@ -254,8 +254,8 @@
       },
       "notRegistered": {
         "title": "Blox Not Registered",
-        "message": "Your Blox is not registered. Please contact sales@fx.land or register your Blox.",
-        "contactSales": "Contact Sales",
+        "message": "Your Blox is not registered. Please register your Blox, or open a GitHub issue at github.com/functionland/fxblox-web/issues.",
+        "contactSales": "Open a GitHub Issue",
         "registerBlox": "Register Blox",
         "ok": "OK"
       },
@@ -408,7 +408,7 @@
     "about": {
       "title": "About",
       "privacy": "Privacy",
-      "body": "Functionland's FxBlox hardware is managed and used by the File Sync and Blox apps. Blox and File Sync can be used independently of each other. The Blox app is responsible for managing, controlling, and configuring the FxBlox hardware as well as the setup / linking of wallets for receiving Fula (rewards) tokens. If you have FxBlox hardware, you will need the Blox app. The File Sync app is responsible for utilizing the FxBlox hardware as a decentralized storage solution for your data.",
+      "body": "These apps are open source under the MIT License and are maintained by independent open-source contributors who are not affiliated with, or acting on behalf of, any party or entity. These terms take effect on September 9, 2026; development carried out before that date was done as part of Functionland. FxBlox hardware is managed and used by the File Sync and Blox apps. Blox and File Sync can be used independently of each other. The Blox app is responsible for managing, controlling, and configuring the FxBlox hardware as well as the setup / linking of wallets for receiving Fula (rewards) tokens. If you have FxBlox hardware, you will need the Blox app. The File Sync app is responsible for utilizing the FxBlox hardware as a decentralized storage solution for your data.",
       "termsPrefix": "By using this application you agree to our terms of service available at ",
       "termsLink": "https://fx.land/terms",
       "termsSuffix": " and subject to get updated within applicable laws.",

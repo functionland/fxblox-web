@@ -254,8 +254,8 @@
       },
       "notRegistered": {
         "title": "Blox 未注册",
-        "message": "您的 Blox 尚未注册。请联系 sales@fx.land 或注册您的 Blox。",
-        "contactSales": "联系销售",
+        "message": "您的 Blox 尚未注册。请注册您的 Blox，或在 github.com/functionland/fxblox-web/issues 提交 GitHub issue。",
+        "contactSales": "提交 GitHub Issue",
         "registerBlox": "注册 Blox",
         "ok": "确定"
       },
@@ -408,7 +408,7 @@
     "about": {
       "title": "关于",
       "privacy": "隐私",
-      "body": "Functionland 的 FxBlox 硬件由 File Sync 和 Blox 应用管理和使用。Blox 和 File Sync 可以彼此独立使用。Blox 应用负责管理、控制和配置 FxBlox 硬件，以及设置/关联用于接收 Fula（奖励）代币的钱包。如果您拥有 FxBlox 硬件，则需要 Blox 应用。File Sync 应用负责将 FxBlox 硬件用作您数据的去中心化存储解决方案。",
+      "body": "这些应用是基于 MIT 许可证的开源软件，由独立的开源贡献者维护，与任何方或实体无关，也不代表任何方或实体。本条款自 2026 年 9 月 9 日起生效；在此日期之前的开发是作为 Functionland 的一部分进行的。FxBlox 硬件由 File Sync 和 Blox 应用管理和使用。Blox 和 File Sync 可以彼此独立使用。Blox 应用负责管理、控制和配置 FxBlox 硬件，以及设置/关联用于接收 Fula（奖励）代币的钱包。如果您拥有 FxBlox 硬件，则需要 Blox 应用。File Sync 应用负责将 FxBlox 硬件用作您数据的去中心化存储解决方案。",
       "termsPrefix": "使用本应用即表示您同意我们的服务条款，条款见 ",
       "termsLink": "https://fx.land/terms",
       "termsSuffix": "，并可能在适用法律范围内更新。",

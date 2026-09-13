@@ -185,9 +185,9 @@
       }
     },
     "welcome": {
-      "title": "Hello Functionlander!",
+      "title": "Hello!",
       "appTitle": "Blox App",
-      "disclaimer": "By using this product you agree to the terms and conditions at fx.land/terms, and would not hold Functionland liable for data loss.",
+      "disclaimer": "This app is open source under the MIT License. You use it at your own risk and do not hold any entity or contributors liable for data loss.",
       "termsButton": "Terms & Conditions",
       "setupButton": "Agree & Setup my Blox"
     },

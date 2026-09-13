@@ -14,7 +14,7 @@ describe('Welcome', () => {
 
   it('renders the mobile copy and continues to Requirements', async () => {
     const { router } = await renderSetupAt('/setup/welcome');
-    expect(await screen.findByText('Hello Functionlander!')).toBeInTheDocument();
+    expect(await screen.findByText('Hello!')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Blox App' })).toBeInTheDocument();
     expect(screen.getByText(/By using this product you agree/)).toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).toBeNull(); // progress 0 hides the bar
