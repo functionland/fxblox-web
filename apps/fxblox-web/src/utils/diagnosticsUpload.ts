@@ -1,5 +1,5 @@
 /**
- * Diagnostics "Send to Support" upload — the user-initiated support-ticket channel for the Raw Diagnostics card.
+ * Diagnostics upload — the user-initiated submission channel for the Raw Diagnostics card.
  * Deliberately DISTINCT from uploadTranscriptUrl.ts (which strips identifiers); this one carries them by design.
  * Server: POST `${AI_TRAINING_URL}/diagnostics`. Requires `kind === "diagnostics"` and a lowercase canonical UUID.
  *

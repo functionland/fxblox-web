@@ -1,8 +1,8 @@
 /**
- * Port of apps/box/src/screens/Diagnostics/RawDiagnosticsCard.tsx — "Raw diagnostics (for support)": fetch the
+ * Port of apps/box/src/screens/Diagnostics/RawDiagnosticsCard.tsx — "Raw diagnostics": fetch the
  * diag bundle (LAN HTTP, else BLE), show the exact merged JSON (FxCodeBlock — its Copy covers the case where
- * the intake host blocks the POST), "Send to support" → ai-training.fx.land/diagnostics, and "Enable remote
- * support" (LAN-only WireGuard start via the security-code modal).
+ * the intake host blocks the POST), "Submit diagnostics" → ai-training.fx.land/diagnostics, and "Enable remote
+ * access" (LAN-only WireGuard start via the security-code modal).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
