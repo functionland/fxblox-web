@@ -16,7 +16,7 @@ describe('Welcome', () => {
     const { router } = await renderSetupAt('/setup/welcome');
     expect(await screen.findByText('Hello!')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Blox App' })).toBeInTheDocument();
-    expect(screen.getByText(/By using this product you agree/)).toBeInTheDocument();
+    expect(screen.getByText(/open source under the MIT License/)).toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).toBeNull(); // progress 0 hides the bar
     await userEvent.click(screen.getByTestId('setup-continue'));
     await waitFor(() => expect(router.state.location.pathname).toBe('/setup/requirements'));
