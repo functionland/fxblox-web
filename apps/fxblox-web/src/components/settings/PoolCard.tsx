@@ -27,7 +27,9 @@ import type { TPool } from '@/models';
 import { paths } from '@/app/paths';
 import { useAppNavigate } from '@/hooks/useAppNavigate';
 import { useAccountWithFallback } from '@/hooks/useAccountWithFallback';
+import { useWalletNetwork } from '@/hooks/useWalletNetwork';
 import { useWallet } from '@/wallet/useWallet';
+import { CHAIN_DISPLAY_NAMES } from '@/contracts/config';
 import { useBloxsStore } from '@/stores/useBloxsStore';
 import { usePoolsStore } from '@/stores/usePoolsStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -108,7 +110,8 @@ function DetailInfo({
   const attemptRef = useRef(0);
 
   const fallbackAccount = useAccountWithFallback();
-  const { account: walletAccount } = useWallet();
+  const { account: walletAccount, provider: walletProvider } = useWallet();
+  const { isOnCorrectNetwork } = useWalletNetwork();
   const currentBloxPeerId = useBloxsStore((state) => state.currentBloxPeerId);
   const bloxsForCluster = useBloxsStore((state) => state.bloxs);
   const bloxsConnectionStatus = useBloxsStore((state) => state.bloxsConnectionStatus);
@@ -133,17 +136,19 @@ function DetailInfo({
     currentBloxPeerId && bloxsConnectionStatus[currentBloxPeerId] === 'CONNECTED',
   );
 
-  // Load the persisted join state for THIS pool + THIS Blox (changes when the user switches Blox).
+  // Load the persisted join state for THIS chain + pool + Blox (changes when the user switches Blox or chain; pool
+  // ids repeat across chains, so the previous chain's progress must not linger while the new one loads).
   useEffect(() => {
+    setJoinState({ ...EMPTY_JOIN_STATE });
     if (!currentBloxPeerId) return undefined;
     let cancelled = false;
-    void loadJoinState(pool.poolID, currentBloxPeerId).then((state) => {
+    void loadJoinState(pool.poolID, currentBloxPeerId, selectedChain).then((state) => {
       if (!cancelled) setJoinState(state);
     });
     return () => {
       cancelled = true;
     };
-  }, [pool.poolID, currentBloxPeerId]);
+  }, [pool.poolID, currentBloxPeerId, selectedChain]);
 
   useEffect(
     () => () => {
@@ -154,14 +159,14 @@ function DetailInfo({
 
   const persist = useCallback(
     async (state: JoinState) => {
-      if (currentBloxPeerId) await saveJoinState(pool.poolID, currentBloxPeerId, state);
+      if (currentBloxPeerId) await saveJoinState(pool.poolID, currentBloxPeerId, selectedChain, state);
     },
-    [pool.poolID, currentBloxPeerId],
+    [pool.poolID, currentBloxPeerId, selectedChain],
   );
 
   const clearPersisted = useCallback(async () => {
-    if (currentBloxPeerId) await clearJoinState(pool.poolID, currentBloxPeerId);
-  }, [pool.poolID, currentBloxPeerId]);
+    if (currentBloxPeerId) await clearJoinState(pool.poolID, currentBloxPeerId, selectedChain);
+  }, [pool.poolID, currentBloxPeerId, selectedChain]);
 
   const disarmTimeout = () => {
     if (joinTimeoutRef.current) clearTimeout(joinTimeoutRef.current);
@@ -196,8 +201,19 @@ function DetailInfo({
   const performStep2 = async (): Promise<string | undefined> => {
     if (isPC) {
       console.log('Step 2: Direct contract joinPool (PC mode)...');
+      // The wallet sends the transaction on whatever network it is on — it must be the selected chain.
+      if (!isOnCorrectNetwork) {
+        throw new Error(
+          t('settings.poolCard.wrongNetwork', { chain: CHAIN_DISPLAY_NAMES[selectedChain] }),
+        );
+      }
       const { getContractService } = await import('@/contracts/contractService');
       const service = getContractService(selectedChain);
+      // A chain change replaces the singleton with an uninitialised instance until useContractIntegration re-runs.
+      if (!service.getProvider()) {
+        if (!walletProvider) throw new Error(t('settings.poolCard.walletNotConnected.message'));
+        await service.initialize(walletProvider);
+      }
       await service.ensureTokenApproval(pool.poolID);
       await service.joinPool(pool.poolID, clusterPeerId);
       console.log('Step 2: Contract joinPool succeeded');

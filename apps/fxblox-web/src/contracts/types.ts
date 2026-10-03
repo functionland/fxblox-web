@@ -56,7 +56,6 @@ export interface ChainConfig {
   rpcUrl: string;
   blockExplorer: string;
   contracts: ContractAddresses;
-  requiresAuth?: boolean;
 }
 
 export type SupportedChain = 'base' | 'skale';

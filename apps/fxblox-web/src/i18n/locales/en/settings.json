@@ -100,26 +100,22 @@
         "message": "Please enter a valid Ethereum address starting with 0x"
       },
       "selectNetwork": "Select the blockchain network for pool operations:",
-      "skaleDescription": "Default network • Zero gas fees • No authorization required",
-      "baseDescription": "Requires authorization code • Gas fees apply",
-      "authorizedSuffix": " • Authorized ✓",
-      "enterAuthCode": "Enter Base Network Authorization Code:",
-      "authCodePlaceholder": "Authorization code",
-      "authorize": "Authorize",
-      "invalidCode": {
-        "title": "Invalid Authorization Code",
-        "message": "Please enter the correct authorization code"
+      "skaleDescription": "Default network • Zero gas fees",
+      "baseDescription": "Gas fees apply",
+      "checkingPools": "Checking pool status…",
+      "blockedMember": {
+        "title": "Can't Switch Network",
+        "message": "{{blox}} is in pool {{pool}} on {{chain}}. Leave the pool before switching networks."
       },
-      "resetBaseAuth": "Reset Base Authorization",
-      "resetConfirm": {
-        "title": "Reset Base Authorization",
-        "message": "Are you sure you want to reset Base network authorization? You will need to re-enter the authorization code to use Base network again.",
-        "confirm": "Reset",
-        "cancel": "Cancel"
+      "blockedPending": {
+        "title": "Can't Switch Network",
+        "message": "{{blox}} has a pending request to join pool {{pool}} on {{chain}}. Cancel the request before switching networks."
       },
-      "resetDone": {
-        "title": "Authorization Reset",
-        "message": "Base network authorization has been reset"
+      "unverified": {
+        "title": "Couldn't Verify Pool Status",
+        "message": "Couldn't verify the pool status of {{blox}} on {{chain}}. If it is in a pool there, switching networks can strand it. Switch anyway?",
+        "yourBloxes": "your Blox",
+        "confirm": "Switch Anyway"
       },
       "chainUpdated": {
         "title": "Chain Updated",
@@ -221,6 +217,7 @@
         "title": "Wallet Not Connected",
         "message": "Please connect your wallet first."
       },
+      "wrongNetwork": "Switch your wallet to {{chain}} before joining this pool.",
       "bloxPeerIdMissing": {
         "title": "Blox Peer ID Missing",
         "message": "Blox peer ID is not available."

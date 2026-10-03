@@ -64,7 +64,7 @@ describe('PoolDetails', () => {
         '0xBBB0000000000000000000000000000000000002',
       ]),
     };
-    useSettingsStore.setState({ selectedChain: 'base', baseAuthorized: true });
+    useSettingsStore.setState({ selectedChain: 'base' });
     const { router } = renderRoute(routes, '/settings/pools/1');
 
     expect(screen.getByRole('heading', { name: 'Alpha' })).toBeInTheDocument();

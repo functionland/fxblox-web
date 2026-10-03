@@ -9,7 +9,6 @@ export const CONTRACT_ADDRESSES: Record<SupportedChain, ChainConfig> = {
     name: 'Base',
     rpcUrl: 'https://base-rpc.publicnode.com',
     blockExplorer: 'https://basescan.org',
-    requiresAuth: true,
     contracts: {
       poolStorage: '0xb093fF4B3B3B87a712107B26566e0cCE5E752b4D',
       rewardEngine: '0x31029f90405fd3D9cB0835c6d21b9DFF058Df45A',
@@ -21,7 +20,6 @@ export const CONTRACT_ADDRESSES: Record<SupportedChain, ChainConfig> = {
     name: 'SKALE Europa Hub',
     rpcUrl: 'https://mainnet.skalenodes.com/v1/elated-tan-skat',
     blockExplorer: 'https://elated-tan-skat.explorer.mainnet.skalenodes.com',
-    requiresAuth: false,
     contracts: {
       poolStorage: '0xf9176Ffde541bF0aa7884298Ce538c471Ad0F015',
       rewardEngine: '0xF7c64248294C45Eb3AcdD282b58675F1831fb047',
@@ -36,7 +34,6 @@ export const LOCAL_DEV_CONFIG: ChainConfig = {
   name: 'Hardhat Local',
   rpcUrl: 'http://127.0.0.1:8545',
   blockExplorer: 'http://localhost:8545',
-  requiresAuth: false,
   contracts: {
     poolStorage: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9',
     rewardEngine: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9',
@@ -45,8 +42,6 @@ export const LOCAL_DEV_CONFIG: ChainConfig = {
 };
 
 export const DEFAULT_CHAIN: SupportedChain = 'skale';
-
-export const BASE_AUTH_CODE = '9870';
 
 export const getChainConfig = (chainId: string): ChainConfig | null => {
   if (chainId === LOCAL_DEV_CONFIG.chainId) {

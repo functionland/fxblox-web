@@ -33,10 +33,8 @@ describe('Contract configuration', () => {
     expect(LOCAL_DEV_CONFIG.chainId).toBe('0x7a69');
     const skale = getChainConfigByName('skale');
     expect(skale.chainId).toBe('0x79f99296');
-    expect(skale.requiresAuth).toBe(false);
     const base = getChainConfigByName('base');
     expect(base.chainId).toBe('0x2105');
-    expect(base.requiresAuth).toBe(true);
     expect(CONTRACT_ADDRESSES.skale.contracts.poolStorage).toMatch(/^0x[0-9a-fA-F]{40}$/);
     expect(isSupportedChain('0x2105')).toBe(true);
     expect(isSupportedChain('0x1')).toBe(false);

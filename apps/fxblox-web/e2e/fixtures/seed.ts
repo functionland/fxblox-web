@@ -35,7 +35,6 @@ export const PAIRED_SEED: Record<string, unknown> = {
       bloxStatusCheckInterval: 0,
       preferBluetooth: false,
       selectedChain: 'skale',
-      baseAuthorized: false,
       debugMode: { uniqueId: 'e2e', endDate: '2000-01-01T00:00:00.000Z' },
     },
     version: 0,

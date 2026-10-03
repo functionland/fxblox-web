@@ -100,26 +100,22 @@
         "message": "请输入以 0x 开头的有效以太坊地址"
       },
       "selectNetwork": "选择用于矿池操作的区块链网络：",
-      "skaleDescription": "默认网络 • 零 Gas 费 • 无需授权",
-      "baseDescription": "需要授权码 • 收取 Gas 费",
-      "authorizedSuffix": " • 已授权 ✓",
-      "enterAuthCode": "输入 Base 网络授权码：",
-      "authCodePlaceholder": "授权码",
-      "authorize": "授权",
-      "invalidCode": {
-        "title": "授权码无效",
-        "message": "请输入正确的授权码"
+      "skaleDescription": "默认网络 • 零 Gas 费",
+      "baseDescription": "收取 Gas 费",
+      "checkingPools": "正在检查矿池状态…",
+      "blockedMember": {
+        "title": "无法切换网络",
+        "message": "{{blox}} 已加入 {{chain}} 上的矿池 {{pool}}。请先退出该矿池再切换网络。"
       },
-      "resetBaseAuth": "重置 Base 授权",
-      "resetConfirm": {
-        "title": "重置 Base 授权",
-        "message": "确定要重置 Base 网络授权吗？再次使用 Base 网络时需要重新输入授权码。",
-        "confirm": "重置",
-        "cancel": "取消"
+      "blockedPending": {
+        "title": "无法切换网络",
+        "message": "{{blox}} 有一个加入 {{chain}} 上矿池 {{pool}} 的待处理请求。请先取消该请求再切换网络。"
       },
-      "resetDone": {
-        "title": "授权已重置",
-        "message": "Base 网络授权已重置"
+      "unverified": {
+        "title": "无法验证矿池状态",
+        "message": "无法验证 {{blox}} 在 {{chain}} 上的矿池状态。如果它已加入那里的矿池，切换网络可能会使其失去关联。仍要切换吗？",
+        "yourBloxes": "您的 Blox",
+        "confirm": "仍要切换"
       },
       "chainUpdated": {
         "title": "链已更新",
@@ -221,6 +217,7 @@
         "title": "钱包未连接",
         "message": "请先连接您的钱包。"
       },
+      "wrongNetwork": "加入此矿池前，请先将钱包切换到 {{chain}}。",
       "bloxPeerIdMissing": {
         "title": "缺少 Blox Peer ID",
         "message": "Blox peer ID 不可用。"

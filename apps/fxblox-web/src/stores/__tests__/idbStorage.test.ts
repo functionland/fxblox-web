@@ -46,7 +46,7 @@ describe('persist envelope', () => {
     await waitFor(() => (mem.dump()[PERSIST_KEYS.settings] ?? '').includes('"light"'));
     const blob = JSON.parse(mem.dump()[PERSIST_KEYS.settings]!);
     expect(blob.version).toBe(0);
-    expect(Object.keys(blob.state).sort()).toEqual(['baseAuthorized', 'bloxStatusCheckInterval', 'colorScheme', 'debugMode', 'isAuto', 'preferBluetooth', 'selectedChain']);
+    expect(Object.keys(blob.state).sort()).toEqual(['bloxStatusCheckInterval', 'colorScheme', 'debugMode', 'isAuto', 'preferBluetooth', 'selectedChain']);
     expect(blob.state.colorScheme).toBe('light');
     expect(blob.state).not.toHaveProperty('_hasHydrated');
     expect(blob.state).not.toHaveProperty('setColorScheme');

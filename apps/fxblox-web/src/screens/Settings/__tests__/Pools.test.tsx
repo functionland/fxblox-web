@@ -176,6 +176,40 @@ describe('Pools', () => {
     await waitFor(() => expect(confirmDialog()).toBeNull());
   });
 
+  it('join on Base sends "base" to the Blox and the join server, ignoring SKALE progress for the same pool id', async () => {
+    // Left over from a SKALE join of pool 1 (legacy key) — must not make the Base pool 1 skip step 1.
+    await kvStore.setItem('joinState_1_p1', JSON.stringify({ step1Complete: true, step2Complete: true }));
+    useSettingsStore.setState({ selectedChain: 'base' });
+    renderRoute(routes, '/settings/pools');
+    const card = await screen.findByTestId('pool-card-1');
+    const join = within(card).getByTestId('pool-1-primary');
+    await waitFor(() => expect(join).toHaveTextContent('Join'));
+    fireEvent.click(join);
+    const dialog = await screen.findByTestId('fx-confirm');
+    expect(dialog).toHaveTextContent('join pool: Alpha on base for Blox: p1');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }));
+
+    await waitFor(() => expect(fulaMock.joinPoolWithChain).toHaveBeenCalledWith(1, 'base'));
+    await waitFor(() =>
+      expect(api.joinPool).toHaveBeenCalledWith(expect.objectContaining({ chain: 'base', poolId: 1 })),
+    );
+    expect(await screen.findByText('Pool Joined Successfully')).toBeInTheDocument();
+    // SKALE's legacy entry is untouched; the Base entry was cleared after success.
+    expect(await kvStore.getItem('joinState_1_p1')).not.toBeNull();
+    await waitFor(async () => expect(await kvStore.getItem('joinState_base_1_p1')).toBeNull());
+  });
+
+  it('force rejoin re-sends the pool to the Blox with the selected chain', async () => {
+    hook.state.pools = [pool('1', 'Alpha', { joined: true, numVotes: 2, numVoters: 3 })];
+    hook.state.userMemberPools = ['1'];
+    useSettingsStore.setState({ selectedChain: 'base' });
+    renderRoute(routes, '/settings/pools');
+    const card = await screen.findByTestId('pool-card-1');
+    fireEvent.click(within(card).getByTestId('pool-1-force-rejoin'));
+    await waitFor(() => expect(fulaMock.joinPoolWithChain).toHaveBeenCalledWith(1, 'base'));
+    expect(api.joinPool).not.toHaveBeenCalled();
+  });
+
   it('join failure with 401 → the 3-way "Blox Not Registered" dialog; "Register Blox" opens the Users tab', async () => {
     fulaMock.joinPoolWithChain.mockRejectedValueOnce(new Error('blox offline'));
     api.joinPool.mockResolvedValueOnce({
@@ -203,7 +237,7 @@ describe('Pools', () => {
   it('leave is contract-only with a chain + gas confirm on Base', async () => {
     hook.state.pools = [pool('1', 'Alpha', { joined: true, numVotes: 2, numVoters: 3 })];
     hook.state.userMemberPools = ['1'];
-    useSettingsStore.setState({ selectedChain: 'base', baseAuthorized: true });
+    useSettingsStore.setState({ selectedChain: 'base' });
     renderRoute(routes, '/settings/pools');
     const card = await screen.findByTestId('pool-card-1');
     expect(card).toHaveTextContent('Joined');

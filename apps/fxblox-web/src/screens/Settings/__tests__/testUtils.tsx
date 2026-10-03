@@ -57,7 +57,6 @@ export function resetSettingsStores() {
     isAuto: true,
     colorScheme: 'dark',
     selectedChain: 'skale',
-    baseAuthorized: false,
     bloxStatusCheckInterval: 0,
     preferBluetooth: false,
     debugMode: { uniqueId: 'dbg', endDate: new Date(Date.now() - 86_400_000) },

@@ -1,10 +1,11 @@
 /**
- * Port of apps/box/src/screens/Settings/ChainSelection.screen.tsx: SKALE vs Base radios (Base gated by the
- * authorization code → `useSettingsStore.baseAuthorized`), connect / disconnect wallet, the compact wallet
- * notification (switch network via `useWalletNetwork`), the manual wallet-address editor
- * (`manualSignatureWalletAddress`), reset-Base-authorization `confirm()`, middle-truncated addresses.
+ * Port of apps/box/src/screens/Settings/ChainSelection.screen.tsx: SKALE vs Base radios, connect / disconnect
+ * wallet, the compact wallet notification (switch network via `useWalletNetwork`), the manual wallet-address editor
+ * (`manualSignatureWalletAddress`), middle-truncated addresses. Base is no longer gated by an authorization code;
+ * instead every switch first runs `checkChainSwitchAllowed` so a Blox in a pool (or with a pending join request) on
+ * the current chain is not stranded.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   FxBox,
@@ -23,6 +24,9 @@ import { useContractIntegration } from '@/hooks/useContractIntegration';
 import { useWallet } from '@/wallet/useWallet';
 import { useUserProfileStore } from '@/stores/useUserProfileStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useBloxsStore } from '@/stores/useBloxsStore';
+import { usePoolsStore } from '@/stores/usePoolsStore';
+import { checkChainSwitchAllowed } from '@/services/chainSwitchGuard';
 import { CHAIN_DISPLAY_NAMES } from '@/contracts/config';
 import type { SupportedChain } from '@/contracts/types';
 
@@ -44,8 +48,8 @@ export default function ChainSelection() {
   const { t } = useTranslation();
   const { queueToast } = useToast();
   const { confirm } = useConfirm();
-  const [authCode, setAuthCode] = useState('');
-  const [showAuthInput, setShowAuthInput] = useState(false);
+  const [checkingPools, setCheckingPools] = useState(false);
+  const checkingRef = useRef(false);
   const [isEditingWalletAddress, setIsEditingWalletAddress] = useState(false);
   const [walletAddressInput, setWalletAddressInput] = useState('');
 
@@ -66,20 +70,12 @@ export default function ChainSelection() {
   }, [manualSignatureWalletAddress]);
 
   const selectedChain = useSettingsStore((state) => state.selectedChain);
-  const baseAuthorized = useSettingsStore((state) => state.baseAuthorized);
   const setSelectedChain = useSettingsStore((state) => state.setSelectedChain);
-  const authorizeBase = useSettingsStore((state) => state.authorizeBase);
-  const resetBaseAuthorization = useSettingsStore((state) => state.resetBaseAuthorization);
 
-  const handleChainSelection = async (chain: SupportedChain) => {
-    // Read the store directly: right after `authorizeBase()` the render-scoped `baseAuthorized` is still
-    // stale (mobile re-showed the code box here and never switched until the user tapped Base again).
-    if (chain === 'base' && !useSettingsStore.getState().baseAuthorized) {
-      setShowAuthInput(true);
-      return;
-    }
-    // Always just update the setting — no automatic wallet opening.
+  const applyChain = (chain: SupportedChain) => {
+    // Just update the setting — no automatic wallet opening.
     setSelectedChain(chain);
+    usePoolsStore.getState().setDirty();
     queueToast({
       type: 'success',
       title: t('settings.chain.chainUpdated.title'),
@@ -92,35 +88,50 @@ export default function ChainSelection() {
     });
   };
 
-  const handleBaseAuthorization = async () => {
-    if (authorizeBase(authCode)) {
-      setShowAuthInput(false);
-      setAuthCode('');
-      await handleChainSelection('base');
-    } else {
-      queueToast({
-        type: 'error',
-        title: t('settings.chain.invalidCode.title'),
-        message: t('settings.chain.invalidCode.message'),
+  const handleChainSelection = async (chain: SupportedChain) => {
+    const fromChain = useSettingsStore.getState().selectedChain;
+    if (chain === fromChain || checkingRef.current) return;
+    checkingRef.current = true;
+    setCheckingPools(true);
+    try {
+      const { bloxs, getClusterPeerIdForBlox } = useBloxsStore.getState();
+      const result = await checkChainSwitchAllowed(fromChain, chain, {
+        bloxs,
+        getClusterPeerId: getClusterPeerIdForBlox,
+        account: account || manualSignatureWalletAddress,
       });
+      const fromName = CHAIN_DISPLAY_NAMES[fromChain];
+      if (result.ok) {
+        applyChain(chain);
+      } else if (result.reason === 'unverified') {
+        console.warn('Chain switch: pool status unverified', result.detail);
+        const proceed = await confirm({
+          title: t('settings.chain.unverified.title'),
+          message: t('settings.chain.unverified.message', {
+            blox: result.bloxName ?? t('settings.chain.unverified.yourBloxes'),
+            chain: fromName,
+          }),
+          confirmText: t('settings.chain.unverified.confirm'),
+          cancelText: t('settings.common.cancel'),
+          destructive: true,
+        });
+        if (proceed) applyChain(chain);
+      } else {
+        const key = result.reason === 'member' ? 'blockedMember' : 'blockedPending';
+        queueToast({
+          type: 'error',
+          title: t(`settings.chain.${key}.title`),
+          message: t(`settings.chain.${key}.message`, {
+            blox: result.bloxName,
+            pool: result.poolName,
+            chain: fromName,
+          }),
+        });
+      }
+    } finally {
+      checkingRef.current = false;
+      setCheckingPools(false);
     }
-  };
-
-  const handleResetBaseAuth = async () => {
-    const ok = await confirm({
-      title: t('settings.chain.resetConfirm.title'),
-      message: t('settings.chain.resetConfirm.message'),
-      confirmText: t('settings.chain.resetConfirm.confirm'),
-      cancelText: t('settings.chain.resetConfirm.cancel'),
-      destructive: true,
-    });
-    if (!ok) return;
-    resetBaseAuthorization();
-    queueToast({
-      type: 'info',
-      title: t('settings.chain.resetDone.title'),
-      message: t('settings.chain.resetDone.message'),
-    });
   };
 
   const saveWalletAddress = () => {
@@ -287,74 +298,33 @@ export default function ChainSelection() {
               }}
               data-testid={`chain-option-${chain}`}
             >
-              <FxRadioButton value={chain} aria-label={CHAIN_DISPLAY_NAMES[chain]} />
+              <FxRadioButton
+                value={chain}
+                aria-label={CHAIN_DISPLAY_NAMES[chain]}
+                disabled={checkingPools}
+              />
               <FxBox flex={1} minWidth={0}>
                 <FxText variant="bodyMediumRegular">{CHAIN_DISPLAY_NAMES[chain]}</FxText>
                 <FxText variant="bodyXSRegular" color="content2" marginTop="4">
                   {chain === 'skale'
                     ? t('settings.chain.skaleDescription')
-                    : t('settings.chain.baseDescription') +
-                      (baseAuthorized ? t('settings.chain.authorizedSuffix') : '')}
+                    : t('settings.chain.baseDescription')}
                 </FxText>
               </FxBox>
             </label>
           ))}
         </FxRadioButton.Group>
 
-        {showAuthInput && (
-          <FxBox
-            marginTop="16"
-            padding="16"
-            backgroundColor="backgroundSecondary"
-            borderRadius="m"
-            testID="chain-auth-box"
+        {checkingPools && (
+          <FxText
+            variant="bodyXSRegular"
+            color="content2"
+            marginTop="8"
+            role="status"
+            testID="chain-checking"
           >
-            <FxText variant="bodyMediumRegular" marginBottom="12">
-              {t('settings.chain.enterAuthCode')}
-            </FxText>
-            <FxTextInput
-              placeholder={t('settings.chain.authCodePlaceholder')}
-              aria-label={t('settings.chain.authCodePlaceholder')}
-              value={authCode}
-              onChangeText={setAuthCode}
-              onSubmitEditing={() => void handleBaseAuthorization()}
-              secureTextEntry
-              marginBottom="12"
-              testID="chain-auth-input"
-            />
-            <FxBox flexDirection="row" justifyContent="space-between" gap="16">
-              <FxButton
-                variant="inverted"
-                flex={1}
-                onPress={() => {
-                  setShowAuthInput(false);
-                  setAuthCode('');
-                }}
-              >
-                {t('settings.common.cancel')}
-              </FxButton>
-              <FxButton
-                flex={1}
-                onPress={() => void handleBaseAuthorization()}
-                disabled={!authCode.trim()}
-                testID="chain-authorize"
-              >
-                {t('settings.chain.authorize')}
-              </FxButton>
-            </FxBox>
-          </FxBox>
-        )}
-
-        {baseAuthorized && (
-          <FxBox marginTop="24">
-            <FxButton
-              variant="inverted"
-              onPress={() => void handleResetBaseAuth()}
-              testID="chain-reset-base"
-            >
-              {t('settings.chain.resetBaseAuth')}
-            </FxButton>
-          </FxBox>
+            {t('settings.chain.checkingPools')}
+          </FxText>
         )}
 
         <FxBox

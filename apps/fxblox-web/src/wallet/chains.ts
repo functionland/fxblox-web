@@ -99,4 +99,3 @@ export const chains: Record<string, typeof baseChainParams> = {
 
 export const SUPPORTED_POOL_CHAINS = [baseChainId, skaleChainId];
 export const DEFAULT_POOL_CHAIN = skaleChainId;
-export const BASE_AUTHORIZATION_CODE = '9870';

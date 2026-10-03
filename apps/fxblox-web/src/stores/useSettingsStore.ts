@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { generateUniqueId } from '@/utils/uniqueId';
 import type { SupportedChain } from '@/contracts/types';
-import { BASE_AUTH_CODE, DEFAULT_CHAIN } from '@/contracts/config';
+import { DEFAULT_CHAIN } from '@/contracts/config';
 import { useSystemColorScheme, applyThemeToDocument, getSystemColorScheme, type ColorScheme } from '@/platform/theme';
 import { PERSIST_KEYS, rehydrateHandler, zustandIdbStorage } from './persist/idbStorage';
 
@@ -12,10 +12,8 @@ export type { ColorScheme };
 
 interface ChainSettings {
   selectedChain: SupportedChain;
-  baseAuthorized: boolean;
+  /** Unguarded — the Chain Selection screen runs `checkChainSwitchAllowed` (pool membership) before calling it. */
   setSelectedChain: (chain: SupportedChain) => void;
-  authorizeBase: (code: string) => boolean;
-  resetBaseAuthorization: () => void;
 }
 
 export interface DebugMode {
@@ -44,7 +42,7 @@ const daysFromNow = (days: number): Date => new Date(Date.now() + days * 24 * 60
 
 export const useSettingsStore = create<ModeSlice>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       _hasHydrated: false,
       setHasHydrated: (isHydrated) => {
         set({ _hasHydrated: isHydrated });
@@ -59,26 +57,8 @@ export const useSettingsStore = create<ModeSlice>()(
       preferBluetooth: false,
       // Chain settings
       selectedChain: DEFAULT_CHAIN,
-      baseAuthorized: false,
       setSelectedChain: (chain: SupportedChain) => {
-        // Only allow Base if authorized
-        if (chain === 'base' && !get().baseAuthorized) {
-          return;
-        }
         set({ selectedChain: chain });
-      },
-      authorizeBase: (code: string) => {
-        if (code === BASE_AUTH_CODE) {
-          set({ baseAuthorized: true });
-          return true;
-        }
-        return false;
-      },
-      resetBaseAuthorization: () => {
-        set({
-          baseAuthorized: false,
-          selectedChain: get().selectedChain === 'base' ? 'skale' : get().selectedChain,
-        });
       },
       setColorScheme: (colorScheme: ColorScheme) => set(() => ({ colorScheme })),
       toggleIsAuto: () => set((state) => ({ isAuto: !state.isAuto })),
@@ -99,7 +79,6 @@ export const useSettingsStore = create<ModeSlice>()(
         colorScheme: state.colorScheme,
         debugMode: state.debugMode,
         selectedChain: state.selectedChain,
-        baseAuthorized: state.baseAuthorized,
         bloxStatusCheckInterval: state.bloxStatusCheckInterval,
         preferBluetooth: state.preferBluetooth,
       }),
