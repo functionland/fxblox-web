@@ -17,6 +17,8 @@ import { peerIdToBytes32 } from '@/utils/peerIdConversion';
 /** Join-request status value for a request still waiting for votes (as read by `usePoolsStore.getPools`). */
 const JOIN_REQUEST_PENDING = 1;
 const DEFAULT_TIMEOUT_MS = 20_000;
+/** Bounds the enumeration so a misbehaving RPC can't keep the loop running after the timeout. */
+const MAX_POOLS = 1000;
 
 export type ChainSwitchCheck =
   | { ok: true }
@@ -68,6 +70,7 @@ const isRevert = (error: unknown): boolean =>
 async function enumeratePoolIds(reader: PoolReader): Promise<string[]> {
   const ids: string[] = [];
   for (let index = 0; ; index++) {
+    if (index >= MAX_POOLS) throw new Error(`more than ${MAX_POOLS} pools`);
     let id: ethers.BigNumber;
     try {
       id = ethers.BigNumber.from(await reader.poolIds(index));
