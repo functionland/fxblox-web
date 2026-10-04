@@ -59,6 +59,8 @@ export function useSettingsMenuItems(): SettingsMenuItem[] {
       to: paths.settings.chain,
     },
     { id: 'pools', label: t('settings.menu.pools'), to: paths.settings.pools },
+    // Web-only: the Blox's Samba share (also reachable from the Blox dashboard card).
+    { id: 'networkDrive', label: t('settings.menu.networkDrive'), to: paths.settings.networkDrive },
     {
       id: 'bloxDiscovery',
       label: t('settings.menu.bloxDiscovery'),

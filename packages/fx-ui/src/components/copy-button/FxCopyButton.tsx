@@ -29,7 +29,12 @@ export function FxCopyButton({
       <FxIconButton
         aria-label={copied ? copiedLabel : label}
         icon={copied ? <FxCheckIcon color="successBase" /> : <FxCopyIcon />}
-        onPress={async () => onCopied?.(await copy(value))}
+        // Not `onCopied?.(await copy(value))`: optional-call short-circuits its arguments, so without an
+        // `onCopied` prop the copy itself never ran.
+        onPress={async () => {
+          const ok = await copy(value);
+          onCopied?.(ok);
+        }}
         {...rest}
       />
       <span role="status" aria-live="polite" className="fx-visually-hidden">

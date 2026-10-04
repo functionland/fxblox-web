@@ -25,7 +25,7 @@ await fula.logout(secretKeyCsv, '');
 | Namespace | Functions |
 |---|---|
 | `fula` | `newClient`, `isReady`, `checkConnection(timeoutSec=20)`, `ping(timeoutSec=60)`, `logout`, `shutdown`, `setAuth` (no-op), `registerLifecycleListener` (no-op), `init` (rejects `UNSUPPORTED_ACTION` — no WNFS in the browser) |
-| `blockchain` | `createAccount`, `checkAccountExists`, `accountFund`, `listPools`, `joinPool`, `leavePool`, `joinPoolWithChain`, `leavePoolWithChain`, `cancelPoolJoin`, `listPoolJoinRequests`, `batchUploadManifest`, `replicateInPool`, `listAvailableReplicationRequests`, `bloxFreeSpace`, `getAccount`, `assetsBalance`, `autoPinPair`, `autoPinRefresh`, `autoPinUnpair` (+ `createPool`, `votePoolJoinRequest`, `newStoreRequest`, `removeReplicationRequest`, `removeStorer`, `removeStoredReplication`, `transferToFula` which reject `UNSUPPORTED_ACTION`) |
+| `blockchain` | `createAccount`, `checkAccountExists`, `accountFund`, `listPools`, `joinPool`, `leavePool`, `joinPoolWithChain`, `leavePoolWithChain`, `cancelPoolJoin`, `listPoolJoinRequests`, `batchUploadManifest`, `replicateInPool`, `listAvailableReplicationRequests`, `bloxFreeSpace`, `getAccount`, `assetsBalance`, `autoPinPair`, `autoPinRefresh`, `autoPinUnpair`, `nasCredentials` (+ `createPool`, `votePoolJoinRequest`, `newStoreRequest`, `removeReplicationRequest`, `removeStorer`, `removeStoredReplication`, `transferToFula` which reject `UNSUPPORTED_ACTION`) |
 | `fxblox` | `wifiRemoveall`, `reboot`, `partition`, `eraseBlData`, `fetchContainerLogs`, `findBestAndTargetInLogs`, `getFolderSize`, `getDatastoreSize`, `getDockerImageBuildDates`, `getClusterInfo`, `listPlugins`, `listActivePlugins`, `installPlugin`, `uninstallPlugin`, `showPluginStatus`, `getInstallStatus`, `getInstallOutput`, `updatePlugin` |
 | `identity` | `identityFromSecretKey(sk)`, `peerIdFromSecretKey(sk)`, `identityStringFromSecretKey(sk)` |
 | `signing` | `signHeaders(identity, action, body, unixSec)`, `buildSignedMessage`, `buildSignedDigest` |
@@ -34,6 +34,10 @@ The protocol functions are near-verbatim copies of react-native-fula's, **includ
 `blockchain.*` functions *resolve* with the error object instead of rejecting (`.catch((err) => err)`), non-JSON
 bodies are returned as raw strings, and the plugin functions' `status:false` path resolves after a second parse.
 apps/box relies on this behaviour, so it is preserved on purpose.
+
+`blockchain.nasCredentials(bloxPeerId?)` is a web-first addition (not in react-native-fula) and does **not** follow
+those quirks: it rejects (`HTTP_ERROR` with `.status` 404 / 400 / 503 / 500, `NOT_AUTHORIZED`, `BAD_RESPONSE`) and
+never returns or logs a raw body, because the response holds the network drive password.
 
 ### `configure(options)`
 
@@ -88,6 +92,7 @@ expected statuses live in `src/core/actions.ts` (verified against go-fula):
 | `account-create` `{}`, `account-exists` `{account}`, `account-fund` `{"amount":1000000000000000000,"to":…}` (bare `BigInt`), `asset-balance` | | 202 |
 | `fula-pool-join` `{pool_id, peer_id:<BLOX peer id>, chain_name}`, `fula-pool-leave` `{pool_id, chain_name}`, `fula-pool-cancel_join`, `fula-pool-poolrequests`, `fula-pool`, `fula-manifest-*`, `replicate` | | 202 |
 | `auto-pin-pair` `{pinning_token,pinning_endpoint}`, `auto-pin-refresh`, `auto-pin-unpair` | | 200 |
+| `nas-credentials` `{blox_peer_id:<BLOX peer id>}` (owner-only; 404 `not_provisioned`, 400 `blox_peer_mismatch`; old firmware answers 401) | | 200 |
 
 HTTP/1.1 is hand-rolled (`src/core/httpOverStream.ts`) because of two kubo facts: its `p2p listen` forwarder
 **full-closes the stream when the client half-closes** (so the write side is only closed after the whole

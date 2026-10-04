@@ -19,6 +19,13 @@ export const blockchain = {
   leavePoolWithChain: vi.fn(async () => ({ status: 'ok' })),
   accountFund: vi.fn(async () => ({})),
   autoPinPair: vi.fn(async () => ({ status: 'ok', pairing_secret: '', hardware_id: '' })),
+  nasCredentials: vi.fn(async () => ({
+    status: 'ok',
+    username: 'fxnas',
+    password: 'test-pass',
+    share: 'SharedFolder',
+    hostname: 'fxblox-test',
+  })),
 };
 
 export const fxblox = {

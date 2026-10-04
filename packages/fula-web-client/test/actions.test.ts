@@ -32,6 +32,7 @@ describe('action table', () => {
       joinPoolWithChain: 'fula-pool-join',
       leavePoolWithChain: 'fula-pool-leave',
       autoPinPair: 'auto-pin-pair',
+      nasCredentials: 'nas-credentials',
     };
     for (const [key, wire] of Object.entries(expected)) {
       expect(ACTIONS[key as keyof typeof ACTIONS].action, key).toBe(wire);
@@ -89,5 +90,12 @@ describe('action table', () => {
     // the Go plugin client functions never check the status
     expect(isOkStatus(ACTIONS.listActivePlugins, 500)).toBe(true);
     expect(isOkStatus(ACTIONS.installPlugin, 202)).toBe(true);
+  });
+
+  it('nas-credentials carries the BLOX peer id and only accepts 200 (go-fula bl_nas.go client)', () => {
+    expect(JSON.parse(ACTIONS.nasCredentials.encode('12D3KooWBlox'))).toEqual({ blox_peer_id: '12D3KooWBlox' });
+    expect(isOkStatus(ACTIONS.nasCredentials, 200)).toBe(true);
+    expect(isOkStatus(ACTIONS.nasCredentials, 202)).toBe(false);
+    expect(isOkStatus(ACTIONS.nasCredentials, 404)).toBe(false);
   });
 });

@@ -14,6 +14,7 @@ functionland org's Pages custom domain — project pages such as the staging dep
 | Device management over libp2p from the browser | **PR-C** libp2p-relay: relay heartbeat publishes `ipfs id` addrs (WebTransport certhash) + worker returns them; `x-fula-client` in `access-control-allow-headers` | `/relays[].addrs` contains `/certhash/` | PR pending (zero-cost fallbacks: `/find-box` entries with certhash, delegated routing, `tools/relay-probe`) |
 | LAN-direct libp2p (same Wi-Fi, no relay) | **PR-D** fula-ota kubo config `/webrtc-direct` + LAN addrs in heartbeat | `/find-box` has a non-circuit `/ip4/` entry | optional (v1.1) |
 | Blox AI over Bluetooth | **PR-E** fula-ota `bluetooth.py` wires `ble_commands.json` (`ai/*`, `diag/*`) | BLE `ai/status` returns JSON | optional |
+| Network drive (Samba `SharedFolder` sign-in details) | fula-ota #98 (login-only Samba + per-device `fxnas` credentials) + go-fula #250 (owner-only `nas-credentials` action) | `blockchain.nasCredentials()`: 200 → supported · 401 → older firmware *or* not the owner · 404 → updated but not set up yet | merged (fula-ota #98, go-fula #250); ships with the next fula-ota release |
 
 | Component | Version the plan was verified against |
 |---|---|

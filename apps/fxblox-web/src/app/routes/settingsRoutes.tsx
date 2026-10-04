@@ -79,6 +79,11 @@ export function buildSettingsRoutes(options: SettingsRoutesOptions = {}): RouteO
           ],
         },
         {
+          path: 'network-drive',
+          lazy: lazyScreen(() => import('@/screens/Settings/NetworkDrive/NetworkDrive')),
+          handle: h('settings.menu.networkDrive'),
+        },
+        {
           path: 'dapps',
           lazy: lazyScreen(() => import('@/screens/Settings/ConnectedDApps/ConnectedDApps')),
           handle: h('settings.menu.connectedDApps'),

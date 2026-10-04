@@ -8,6 +8,7 @@
       "chainSelection": "链选择",
       "chainDetail": "当前：{{chain}}",
       "pools": "矿池",
+      "networkDrive": "网络驱动器",
       "bloxDiscovery": "发现 Blox",
       "bluetoothCommands": "蓝牙命令",
       "bloxLogs": "Blox 日志",
@@ -487,6 +488,130 @@
         "invalidFormat": "二维码格式无效。应为包含 \"api\" 和 \"endpoint\" 的 JSON。",
         "cancel": "取消",
         "videoLabel": "相机预览"
+      }
+    },
+    "networkDrive": {
+      "title": "网络驱动器",
+      "intro": "把你的 Blox 当作家庭网络中的 U 盘使用，从电脑或手机保存和打开文件。",
+      "sameNetwork": "你的电脑或手机必须与 Blox 连接在同一个 Wi-Fi 或家庭网络中。",
+      "card": {
+        "title": "网络驱动器",
+        "subtitle": "从电脑或手机打开 Blox 中的文件"
+      },
+      "devicePicker": "你要连接哪种设备？",
+      "devices": {
+        "windows": "Windows",
+        "mac": "Mac",
+        "ios": "iPhone/iPad",
+        "android": "Android"
+      },
+      "details": {
+        "title": "登录信息",
+        "address": "地址",
+        "server": "服务器",
+        "share": "文件夹",
+        "username": "用户名",
+        "password": "密码",
+        "copyAddress": "复制地址",
+        "copyServer": "复制服务器",
+        "copyShare": "复制文件夹名称",
+        "copyUsername": "复制用户名",
+        "copyPassword": "复制密码",
+        "showPassword": "显示密码",
+        "hidePassword": "隐藏密码",
+        "passwordHint": "请严格按显示内容输入（全部为小写）。",
+        "noIpHint": "如果此地址无法使用，你需要 Blox 的 IP 地址。请查看下方的“无法连接？”。"
+      },
+      "steps": {
+        "windows": {
+          "1": "在 Windows 电脑上，同时按下 <bold>Windows 键 + R</bold>。",
+          "2": "粘贴此地址并按 <bold>Enter</bold>：",
+          "3": "当 Windows 要求登录时，输入上方的用户名和密码。",
+          "4": "勾选 <bold>记住我的凭据</bold>，然后点击 <bold>确定</bold>。Blox 会像普通文件夹一样打开。"
+        },
+        "windowsDrive": {
+          "title": "保存为驱动器盘符（可选）",
+          "1": "打开 <bold>文件资源管理器</bold>，右键点击 <bold>此电脑</bold>，选择 <bold>映射网络驱动器</bold>（在 Windows 11 中可能位于 <bold>显示更多选项</bold> 中）。",
+          "2": "任选一个盘符，并在 <bold>文件夹</bold> 中粘贴此地址：",
+          "3": "勾选 <bold>登录时重新连接</bold>，点击 <bold>完成</bold>，并使用相同的用户名和密码登录。"
+        },
+        "mac": {
+          "1": "在 <bold>访达</bold> 中，点击 <bold>前往 › 连接服务器</bold>（或按 <bold>⌘ K</bold>）。",
+          "2": "输入此地址并点击 <bold>连接</bold>：",
+          "3": "选择 <bold>注册用户</bold>，输入上方的用户名和密码。",
+          "4": "勾选 <bold>在我的钥匙串中记住此密码</bold>，然后点击 <bold>连接</bold>。",
+          "openFinder": "在访达中打开",
+          "openFinderHint": "浏览器可能会询问是否打开访达，请允许。"
+        },
+        "ios": {
+          "1": "打开 <bold>文件</bold> App，轻点 <bold>浏览</bold>。",
+          "2": "轻点顶部的 <bold>⋯</bold>，然后选择 <bold>连接服务器</bold>。",
+          "3": "输入此地址并轻点 <bold>连接</bold>：",
+          "4": "选择 <bold>注册用户</bold>，输入上方的用户名和密码，然后轻点 <bold>下一步</bold>。",
+          "5": "现在你的 Blox 会出现在“文件”App 的 <bold>共享</bold> 下。"
+        },
+        "android": {
+          "intro": "Android 没有内置此功能。你需要一个可以打开“SMB”或“网络存储”文件夹的文件管理器 App。",
+          "1": "打开一个支持 SMB（网络存储）的文件管理器 App。",
+          "2": "添加一个新的 <bold>SMB</bold> 连接。",
+          "3": "输入以下服务器和文件夹。如果 App 只要求一个地址，请使用最后一个：",
+          "4": "输入上方的用户名和密码，然后保存并打开。"
+        }
+      },
+      "help": {
+        "title": "无法连接？",
+        "sameWifi": "确保你的电脑或手机与 Blox 连接在同一个 Wi-Fi 中，而不是移动数据、访客网络或 VPN。",
+        "online": "确认 Blox 已开机，并在 Blox 标签页中显示为已连接。",
+        "otherAddress": "试试另一个地址：",
+        "afterUpdate": "刚更新过 Blox？请等待几分钟后再试。",
+        "password": "请严格按显示内容输入密码（全部为小写）。复制粘贴最稳妥。",
+        "windowsUser": "Windows 提示用户名或密码错误？请这样输入用户名：",
+        "windowsOtherAccount": "如果 Windows 自动填入了你自己的帐户，请先选择 <bold>更多选项</bold> › <bold>使用其他帐户</bold>。",
+        "windows1219": "Windows 提示不允许多重连接（错误 1219）？请使用上方的另一个地址，或重启电脑后再试。",
+        "findIp": "需要 Blox 的 IP 地址？打开路由器的 App 或管理页面，找到名为 <bold>{{name}}</bold> 的设备。它的地址类似 192.168.1.23。然后使用 smb://该地址/{{share}}。",
+        "ipMayChange": "显示的 IP 地址是此 App 最后一次看到的地址。如果路由器给 Blox 分配了新地址，请在路由器 App 中查看。",
+        "twoBlox": "有不止一台 Blox？它们可能同名，请使用 IP 地址。",
+        "stillStuck": "仍然无法解决？在 GitHub 上提问"
+      },
+      "safety": "只有在你的家庭网络中并且知道此密码的人才能打开这个驱动器。这里的文件只保存在 Blox 的磁盘上，重要文件请另外备份。",
+      "state": {
+        "noBlox": "请先添加或选择一台 Blox。",
+        "connecting": "正在连接你的 Blox…",
+        "slowConnecting": "比平时花的时间更长。请确认 Blox 已开机。",
+        "loading": "正在获取登录信息…",
+        "slowLoading": "这最多可能需要一分钟。",
+        "retry": "重试",
+        "checkAgain": "再次检查"
+      },
+      "errors": {
+        "notProvisioned": {
+          "title": "即将就绪",
+          "body": "你的 Blox 仍在设置网络驱动器。更新后可能需要几分钟，并且 Blox 的存储硬盘必须已连接。请稍后再试。"
+        },
+        "ownerOnly": {
+          "title": "只有 Blox 所有者可以查看",
+          "body": "只有设置这台 Blox 的人才能看到这些登录信息。请让他们打开此页面。"
+        },
+        "needsUpdate": {
+          "title": "需要更新",
+          "body": "你的 Blox 需要软件更新才能使用此功能。更新会自动安装，请稍后再来查看。"
+        },
+        "reconnect": {
+          "title": "请再试一次",
+          "body": "App 仍在切换 Blox。请稍等片刻后重试。"
+        },
+        "busy": {
+          "title": "Blox 正忙",
+          "body": "请一分钟后再试。"
+        },
+        "offline": {
+          "title": "无法连接到 Blox",
+          "body": "请确认 Blox 已开机并已连接互联网，然后重试。"
+        },
+        "generic": {
+          "title": "出了点问题",
+          "body": "请重试。如果问题持续出现，请在 GitHub 上报告。"
+        }
       }
     }
   }

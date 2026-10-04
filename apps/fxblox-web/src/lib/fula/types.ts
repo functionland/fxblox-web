@@ -37,6 +37,15 @@ export interface AutoPinPairResponse {
   pairing_secret: string;
   hardware_id: string;
 }
+/** go-fula `nas-credentials` (owner only). Holds a password: keep it in component state, never log or persist it. */
+export interface NasCredentialsResponse {
+  status: string;
+  username: string;
+  password: string;
+  share: string;
+  created_at?: string;
+  hostname?: string;
+}
 
 // ---- fxblox response types (react-native-fula/src/types/fxblox.ts) ----
 export interface StatusMsgResponse {
@@ -106,6 +115,8 @@ export interface BlockchainNamespace {
   leavePoolWithChain(poolID: number, chain: string): Promise<PoolLeaveResponse>;
   accountFund(account: string): Promise<AccountFundResponse>;
   autoPinPair(token: string, endpoint: string): Promise<AutoPinPairResponse>;
+  /** Rejects (does not resolve with the error): HTTP_ERROR + status, NOT_AUTHORIZED, BAD_RESPONSE, transport codes. */
+  nasCredentials(bloxPeerId?: string): Promise<NasCredentialsResponse>;
 }
 
 export interface FxbloxNamespace {
@@ -156,7 +167,12 @@ export type FulaWebErrorCode =
   | 'CIRCUIT_DATA_CAP'
   | 'TIMEOUT'
   | 'CLIENT_CLOSED'
-  | 'UNSUPPORTED_PROTOCOL';
+  | 'UNSUPPORTED_PROTOCOL'
+  | 'DIAL_FAILED'
+  | 'STREAM_ERROR'
+  | 'NOT_INITIALIZED'
+  | 'UNSUPPORTED_ACTION'
+  | 'INVALID_ARGUMENT';
 
 export interface FulaClientContract {
   fula: FulaNamespace;

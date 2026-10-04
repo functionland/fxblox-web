@@ -1,9 +1,11 @@
 /**
  * Blox dashboard — port of apps/box/src/screens/Blox/Blox.screen.tsx.
  *
- * Phone: hero → Diagnose CTA → WalletNotification (compact) → UsageBar → DeviceCard → EarningCard → TasksCard.
- * Desktop (≥ 900px): notification banner → hero card (with the CTA) → grid-cols-2 (DeviceCard + UsageBar |
- * EarningCard + TasksCard). Header actions: `BloxHeader` in the AppShell phone slot (desktop keeps the TopBar).
+ * Phone: hero → Diagnose CTA → WalletNotification (compact) → UsageBar → DeviceCard → NetworkDriveCard →
+ * EarningCard → TasksCard.
+ * Desktop (≥ 900px): notification banner → hero card (with the CTA) → grid-cols-2 (DeviceCard + UsageBar +
+ * NetworkDriveCard | EarningCard + TasksCard). Header actions: `BloxHeader` in the AppShell phone slot (desktop
+ * keeps the TopBar).
  *
  * The five `Alert.alert`s are `useConfirm()` dialogs; "clear cache" clears the data layer (`clearAppCache`);
  * reset-to-hotspot / reboot call `fxblox.wifiRemoveall()` / `fxblox.reboot()`. Everything is keyed by
@@ -42,6 +44,7 @@ import { WalletNotification } from '@/components/WalletNotification';
 import { UsageBar } from '@/components/UsageBar';
 import { DeviceCard } from '@/components/Cards/DeviceCard';
 import { EarningCard } from '@/components/Cards/EarningCard';
+import { NetworkDriveCard } from '@/components/Cards/NetworkDriveCard';
 import { TasksCard } from '@/components/Cards/TasksCard';
 import { StoragePersistenceCard } from '@/components/StoragePersistenceCard';
 import { BloxHeader } from './BloxHeader';
@@ -411,6 +414,9 @@ export default function Blox() {
       }}
     />
   );
+  const networkDriveCard = currentBloxPeerId ? (
+    <NetworkDriveCard onPress={() => void navigate(paths.settings.networkDrive)} />
+  ) : null;
   const walletSection = (
     <WalletGate>
       <BloxWalletSection readyForCurrent={readyForCurrent} loadedPeerId={loadedPeerId} currentBloxPeerId={currentBloxPeerId} />
@@ -444,6 +450,7 @@ export default function Blox() {
               <div className="flex min-w-0 flex-col gap-4">
                 {deviceCard}
                 {usageBar}
+                {networkDriveCard}
               </div>
               <div className="flex min-w-0 flex-col gap-4">{walletSection}</div>
             </div>
@@ -456,6 +463,7 @@ export default function Blox() {
             {storageNotice}
             {usageBar}
             {deviceCard}
+            {networkDriveCard}
             {walletSection}
           </>
         )}

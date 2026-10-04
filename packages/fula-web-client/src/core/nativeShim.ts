@@ -100,6 +100,9 @@ export interface FulaNativeModule {
   autoPinPair: (token: string, endpoint: string) => Promise<string>;
   autoPinRefresh: (token: string) => Promise<string>;
   autoPinUnpair: () => Promise<string>;
+
+  // Network drive (web-first; not in react-native-fula)
+  nasCredentials: (bloxPeerId?: string) => Promise<string>;
 }
 
 /** Sends the action, enforces the Go client's expected status, returns the raw body string. */
@@ -193,6 +196,9 @@ export const Fula: FulaNativeModule = {
   autoPinPair: (token, endpoint) => callAction(ACTIONS.autoPinPair, token, endpoint),
   autoPinRefresh: (token) => callAction(ACTIONS.autoPinRefresh, token),
   autoPinUnpair: () => callAction(ACTIONS.autoPinUnpair),
+
+  // async so a synchronous requireBloxPeerId() throw becomes a rejection.
+  nasCredentials: async (bloxPeerId) => callAction(ACTIONS.nasCredentials, bloxPeerId || client.requireBloxPeerId()),
 };
 
 export default Fula;

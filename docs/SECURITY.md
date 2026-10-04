@@ -17,6 +17,14 @@ Trust model, stated plainly:
   "re-link", not data loss.
 - Deferred hardening: PIN-wrapped unlock and idle auto-lock.
 
+### Network drive credentials
+
+The Blox's Samba password (go-fula `nas-credentials`, owner-only) is fetched on demand by the Network drive screen and
+kept **only in that screen's React state**: never in zustand / IndexedDB / sessionStorage / the URL, never in a toast
+(toast text is mirrored to the console) or a log, and cleared when the Blox changes or the screen unmounts. It stays
+out of the DOM until the user taps "Show password"; Copy writes it to the clipboard only on an explicit tap.
+`blockchain.nasCredentials()` logs only the call and, on failure, `{code, status}` — never the body.
+
 ## Device APIs
 
 - `:3500` / `:8083` are plain HTTP on the LAN/hotspot. Chrome's Local Network Access permission gates the browser side;

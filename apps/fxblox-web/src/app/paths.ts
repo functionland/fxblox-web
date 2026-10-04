@@ -65,6 +65,8 @@ export const paths = {
     joinRequests: (poolId: string | number) => `/settings/pools/${seg(poolId)}/join-requests`,
     dapps: '/settings/dapps',
     autopin: '/settings/autopin',
+    /** Samba share sign-in details + connect guides (also opened from the Blox dashboard card). Web-only. */
+    networkDrive: '/settings/network-drive',
     bluetooth: '/settings/bluetooth',
     /** Behind `VITE_ENABLE_BLOX_LOGS`. */
     logs: '/settings/logs',
