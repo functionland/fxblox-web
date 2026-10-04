@@ -35,6 +35,7 @@ const APP_ROUTES = [
   '/settings/pools/1/join-requests',
   '/settings/dapps',
   '/settings/autopin',
+  '/settings/network-drive',
   '/settings/bluetooth',
   '/settings/logs',
   '/settings/about',

@@ -89,6 +89,7 @@ function renderBlox() {
       { path: '/blox-ai', element: <div data-testid="blox-ai-page" /> },
       { path: '/setup/connect-blox', element: <div data-testid="connect-blox-page" /> },
       { path: '/blox/manage', element: <div data-testid="manage-page" /> },
+      { path: '/settings/network-drive', element: <div data-testid="network-drive-page" /> },
     ],
   });
 }
@@ -134,6 +135,14 @@ describe('Blox dashboard', () => {
     fireEvent.click(screen.getByTestId('blox-screen-diagnose-cta'));
     await waitFor(() => expect(router.state.location.pathname).toBe('/blox-ai'));
     expect(router.state.location.search).toBe('?scenario=disconnected');
+  });
+
+  it('the Network drive card opens the network drive screen', async () => {
+    setPairedStores({ name: 'Office Blox', status: 'CONNECTED' });
+    const { router } = renderBlox();
+    const card = screen.getByTestId('blox-network-drive-card');
+    fireEvent.click(within(card).getByRole('button', { name: 'Network drive' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/settings/network-drive'));
   });
 
   it('desktop (≥ 900px) uses the banner + hero card + two-column grid', async () => {

@@ -8,6 +8,7 @@
       "chainSelection": "Chain Selection",
       "chainDetail": "Current: {{chain}}",
       "pools": "Pools",
+      "networkDrive": "Network drive",
       "bloxDiscovery": "Blox discovery",
       "bluetoothCommands": "Bluetooth commands",
       "bloxLogs": "Blox logs",
@@ -487,6 +488,130 @@
         "invalidFormat": "Invalid QR code format. Expected JSON with \"api\" and \"endpoint\".",
         "cancel": "Cancel",
         "videoLabel": "Camera preview"
+      }
+    },
+    "networkDrive": {
+      "title": "Network drive",
+      "intro": "Use your Blox like a USB drive on your home network. Save and open files from your computer or phone.",
+      "sameNetwork": "Your computer or phone must be on the same Wi-Fi or home network as your Blox.",
+      "card": {
+        "title": "Network drive",
+        "subtitle": "Open your Blox's files from your computer or phone"
+      },
+      "devicePicker": "Which device are you connecting?",
+      "devices": {
+        "windows": "Windows",
+        "mac": "Mac",
+        "ios": "iPhone/iPad",
+        "android": "Android"
+      },
+      "details": {
+        "title": "Sign-in details",
+        "address": "Address",
+        "server": "Server",
+        "share": "Folder",
+        "username": "User name",
+        "password": "Password",
+        "copyAddress": "Copy address",
+        "copyServer": "Copy server",
+        "copyShare": "Copy folder name",
+        "copyUsername": "Copy user name",
+        "copyPassword": "Copy password",
+        "showPassword": "Show password",
+        "hidePassword": "Hide password",
+        "passwordHint": "Type it exactly as shown — all lowercase.",
+        "noIpHint": "If this address doesn't work, you'll need your Blox's IP address. See “Can't connect?” below."
+      },
+      "steps": {
+        "windows": {
+          "1": "On your Windows PC, press <bold>Windows key + R</bold> together.",
+          "2": "Paste this address and press <bold>Enter</bold>:",
+          "3": "When Windows asks you to sign in, enter the user name and password above.",
+          "4": "Tick <bold>Remember my credentials</bold> and click <bold>OK</bold>. Your Blox opens like a folder."
+        },
+        "windowsDrive": {
+          "title": "Keep it as a drive letter (optional)",
+          "1": "Open <bold>File Explorer</bold>, right-click <bold>This PC</bold> and choose <bold>Map network drive</bold> (on Windows 11 it may be under <bold>Show more options</bold>).",
+          "2": "Pick any letter and paste this address in <bold>Folder</bold>:",
+          "3": "Tick <bold>Reconnect at sign-in</bold>, click <bold>Finish</bold> and sign in with the same user name and password."
+        },
+        "mac": {
+          "1": "In <bold>Finder</bold>, click <bold>Go › Connect to Server</bold> (or press <bold>⌘ K</bold>).",
+          "2": "Type this address and click <bold>Connect</bold>:",
+          "3": "Choose <bold>Registered User</bold> and enter the user name and password above.",
+          "4": "Tick <bold>Remember this password in my keychain</bold> and click <bold>Connect</bold>.",
+          "openFinder": "Open in Finder",
+          "openFinderHint": "Your browser may ask to open Finder. Allow it."
+        },
+        "ios": {
+          "1": "Open the <bold>Files</bold> app and tap <bold>Browse</bold>.",
+          "2": "Tap <bold>⋯</bold> at the top, then <bold>Connect to Server</bold>.",
+          "3": "Type this address and tap <bold>Connect</bold>:",
+          "4": "Choose <bold>Registered User</bold>, enter the user name and password above, and tap <bold>Next</bold>.",
+          "5": "Your Blox now appears under <bold>Shared</bold> in the Files app."
+        },
+        "android": {
+          "intro": "Android doesn't have this built in. You need a file manager app that can open “SMB” or “network storage” folders.",
+          "1": "Open a file manager app that supports SMB (network storage).",
+          "2": "Add a new <bold>SMB</bold> connection.",
+          "3": "Enter this server and folder. If the app asks for one address instead, use the last one:",
+          "4": "Enter the user name and password above, then save and open it."
+        }
+      },
+      "help": {
+        "title": "Can't connect?",
+        "sameWifi": "Make sure your computer or phone is on the same Wi-Fi as your Blox — not mobile data, a guest network or a VPN.",
+        "online": "Check that your Blox is on and shows as connected on the Blox tab.",
+        "otherAddress": "Try the other address:",
+        "afterUpdate": "Just updated your Blox? Wait a few minutes, then try again.",
+        "password": "Type the password exactly as shown, all lowercase. Copy and paste is safest.",
+        "windowsUser": "Windows says the user name or password is wrong? Type the user name like this:",
+        "windowsOtherAccount": "If Windows fills in your own account, choose <bold>More choices</bold> › <bold>Use a different account</bold> first.",
+        "windows1219": "Windows says multiple connections are not allowed (error 1219)? Use the other address above, or restart your PC and try again.",
+        "findIp": "Need your Blox's IP address? Open your router's app or web page and look for a device called <bold>{{name}}</bold>. Its address looks like 192.168.1.23. Then use smb://that-address/{{share}}.",
+        "ipMayChange": "The IP address shown is the last one this app saw. If your router gave your Blox a new one, look it up in your router's app.",
+        "twoBlox": "Have more than one Blox? They may share the same name, so use the IP address.",
+        "stillStuck": "Still stuck? Ask on GitHub"
+      },
+      "safety": "Only people on your home network who have this password can open this drive. Files here are kept only on your Blox's disk, so keep copies of anything important somewhere else.",
+      "state": {
+        "noBlox": "Add or choose a Blox first.",
+        "connecting": "Connecting to your Blox…",
+        "slowConnecting": "This is taking longer than usual. Check that your Blox is on.",
+        "loading": "Getting your sign-in details…",
+        "slowLoading": "This can take up to a minute.",
+        "retry": "Try again",
+        "checkAgain": "Check again"
+      },
+      "errors": {
+        "notProvisioned": {
+          "title": "Almost ready",
+          "body": "Your Blox is still setting up the network drive. This can take a few minutes after an update, and the Blox's storage drive must be connected. Try again later."
+        },
+        "ownerOnly": {
+          "title": "Only the Blox owner can see this",
+          "body": "Only the person who set up this Blox can see these sign-in details. Ask them to open this page."
+        },
+        "needsUpdate": {
+          "title": "Update needed",
+          "body": "Your Blox needs a software update for this. Updates install automatically — check back later."
+        },
+        "reconnect": {
+          "title": "Let's try that again",
+          "body": "The app was still switching Blox. Wait a moment, then try again."
+        },
+        "busy": {
+          "title": "Your Blox is busy",
+          "body": "Please try again in a minute."
+        },
+        "offline": {
+          "title": "Can't reach your Blox",
+          "body": "Make sure your Blox is on and connected to the internet, then try again."
+        },
+        "generic": {
+          "title": "Something went wrong",
+          "body": "Please try again. If it keeps happening, report it on GitHub."
+        }
       }
     }
   }

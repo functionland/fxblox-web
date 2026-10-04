@@ -1,8 +1,17 @@
 // Label + monospace value + copy (and optional share) — replaces the mobile "wide FxButton with a CopyIcon"
 // pattern used for addresses / DIDs / peer ids (WalletDetails, BloxInfoSheet, Users).
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FxBox, FxCopyButton, FxIconButton, FxShareIcon, FxText, cn } from '@functionland/fx-ui';
+import {
+  FxBox,
+  FxCopyButton,
+  FxEyeIcon,
+  FxEyeOffIcon,
+  FxIconButton,
+  FxShareIcon,
+  FxText,
+  cn,
+} from '@functionland/fx-ui';
 
 export interface CopyRowProps {
   label: ReactNode;
@@ -13,6 +22,13 @@ export interface CopyRowProps {
   copyLabel?: string;
   copiedLabel?: string;
   shareLabel?: string;
+  /**
+   * Passwords: the value stays out of the page (no text, `title` or `data-value`) until the user reveals it;
+   * Copy still copies the real value.
+   */
+  secret?: boolean;
+  revealLabel?: string;
+  hideLabel?: string;
   className?: string;
   testID?: string;
 }
@@ -32,10 +48,15 @@ export function CopyRow({
   copyLabel,
   copiedLabel,
   shareLabel,
+  secret = false,
+  revealLabel,
+  hideLabel,
   className,
   testID,
 }: CopyRowProps) {
   const { t } = useTranslation();
+  const [revealed, setRevealed] = useState(false);
+  const masked = secret && !revealed;
   const display = truncate === 'middle' ? truncateMiddle(value) : value;
   return (
     <FxBox
@@ -51,17 +72,32 @@ export function CopyRow({
         <FxText variant="bodyXSSemibold" color="content3">
           {label}
         </FxText>
-        <FxText
-          variant="bodySmallRegular"
-          color="content1"
-          numberOfLines={truncate === 'end' ? 1 : undefined}
-          title={value}
-          className={cn('font-mono', truncate === 'none' && 'break-all')}
-          data-value={value}
-        >
-          {display}
-        </FxText>
+        {masked ? (
+          <FxText variant="bodySmallRegular" color="content1" className="font-mono">
+            <span aria-hidden="true">••••••••••••</span>
+            <span className="sr-only">{t('main.common.hidden')}</span>
+          </FxText>
+        ) : (
+          <FxText
+            variant="bodySmallRegular"
+            color="content1"
+            numberOfLines={truncate === 'end' ? 1 : undefined}
+            title={secret ? undefined : value}
+            className={cn('font-mono', truncate === 'none' && 'break-all')}
+            data-value={secret ? undefined : value}
+          >
+            {display}
+          </FxText>
+        )}
       </FxBox>
+      {secret && (
+        <FxIconButton
+          aria-label={revealed ? (hideLabel ?? t('main.common.hide')) : (revealLabel ?? t('main.common.show'))}
+          icon={revealed ? <FxEyeOffIcon /> : <FxEyeIcon />}
+          pressed={revealed}
+          onPress={() => setRevealed((r) => !r)}
+        />
+      )}
       <FxCopyButton
         value={value}
         label={copyLabel ?? t('main.common.copy')}

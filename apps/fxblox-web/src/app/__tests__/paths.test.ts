@@ -65,6 +65,12 @@ describe('ROUTE_NAME_TO_PATH', () => {
     }
   });
 
+  it('the web-only network drive screen is served (not the catch-all)', () => {
+    const matches = matchRoutes(buildAppRoutes({ gallery: true, bloxLogs: true }), paths.settings.networkDrive);
+    expect(matches).not.toBeNull();
+    expect(matches![matches!.length - 1]!.route.path).toBe('network-drive');
+  });
+
   it('builders encode params and queries', () => {
     expect(paths.plugin('my plugin')).toBe('/plugins/my%20plugin');
     expect(paths.settings.joinRequests(7)).toBe('/settings/pools/7/join-requests');
