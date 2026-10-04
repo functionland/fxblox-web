@@ -7,8 +7,11 @@
  *   - `joinPoolWithChain` / `leavePoolWithChain` / `getAccount` / `assetsBalance` / `transferToFula` re-throw;
  *   - a non-JSON body is returned as the raw string.
  * Only the logging changed (ring buffer, no identities/seeds).
+ *
+ * `nasCredentials` is a web-first addition (not in react-native-fula): it re-throws and never returns a raw body.
  */
 import Fula from '../core/nativeShim.js';
+import { FulaWebError } from '../core/errors.js';
 import { createLogger } from '../core/log.js';
 import type * as BType from '../types/blockchain.js';
 
@@ -626,4 +629,52 @@ export const autoPinUnpair = (): Promise<BType.AutoPinUnpairResponse> => {
       return err;
     });
   return res1;
+};
+
+// Network drive
+
+/*
+nasCredentials: asks the Blox (owner only) for its Samba network-drive sign-in details. `bloxPeerId` is the BLOX
+(kubo) peer id the caller believes it is talking to; a mismatch is rejected by the Blox with 400.
+Rejects (never resolves with an error): HTTP_ERROR with `.status` 404 (not set up yet) / 400 / 503 / 500,
+NOT_AUTHORIZED (not the owner, or firmware without the action), BAD_RESPONSE, or a transport error.
+The response holds a password: it is never logged, and a malformed body is never echoed.
+*/
+export const nasCredentials = async (bloxPeerId?: string): Promise<BType.NasCredentialsResponse> => {
+  log.debug('nasCredentials started');
+  let raw: string;
+  try {
+    raw = await Fula.nasCredentials(bloxPeerId);
+  } catch (err) {
+    const e = err as { code?: unknown; status?: unknown };
+    // warn, not error: 401 (old firmware) and 404 (not set up yet) are expected answers the screen explains.
+    log.warn('nasCredentials failed', { code: e?.code, status: e?.status });
+    throw err;
+  }
+  let parsed: Partial<BType.NasCredentialsResponse> | null;
+  try {
+    parsed = JSON.parse(raw) as Partial<BType.NasCredentialsResponse> | null;
+  } catch {
+    // No `cause`: a JSON SyntaxError message can quote the input.
+    throw new FulaWebError('BAD_RESPONSE', 'nas-credentials answered 200 with a non-JSON body', { action: 'nas-credentials' });
+  }
+  if (
+    !parsed ||
+    typeof parsed.username !== 'string' ||
+    !parsed.username ||
+    typeof parsed.password !== 'string' ||
+    !parsed.password
+  ) {
+    throw new FulaWebError('BAD_RESPONSE', 'nas-credentials answered 200 without a user name and password', {
+      action: 'nas-credentials',
+    });
+  }
+  return {
+    status: typeof parsed.status === 'string' ? parsed.status : 'ok',
+    username: parsed.username,
+    password: parsed.password,
+    share: typeof parsed.share === 'string' && parsed.share ? parsed.share : 'SharedFolder',
+    ...(typeof parsed.created_at === 'string' ? { created_at: parsed.created_at } : {}),
+    ...(typeof parsed.hostname === 'string' && parsed.hostname ? { hostname: parsed.hostname } : {}),
+  };
 };

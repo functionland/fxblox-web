@@ -141,3 +141,15 @@ export interface AutoPinRefreshResponse {
 export interface AutoPinUnpairResponse {
   status: string;
 }
+
+// Network drive (go-fula nas-credentials). Contains a secret: never log or persist it.
+export interface NasCredentialsResponse {
+  status: string;
+  username: string;
+  password: string;
+  /** Samba share name, e.g. "SharedFolder". */
+  share: string;
+  created_at?: string;
+  /** The Blox's hostname (also its Windows network name), e.g. "fxblox-rk1". */
+  hostname?: string;
+}

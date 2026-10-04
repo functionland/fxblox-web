@@ -106,6 +106,11 @@ export const ACTIONS = {
   ),
   autoPinRefresh: def<[token: string]>('auto-pin-refresh', [200], (pinning_token) => json({ pinning_token })),
   autoPinUnpair: def('auto-pin-unpair', [200], EMPTY),
+
+  // ---- Network drive (blockchain/bl_nas.go, owner-only) — 200 ------------------------------------------------
+  // `blox_peer_id` must be the BLOX (kubo) peer id; the Blox answers 400 blox_peer_mismatch otherwise, so a
+  // request can never return another Blox's credentials.
+  nasCredentials: def<[bloxPeerId: string]>('nas-credentials', [200], (blox_peer_id) => json({ blox_peer_id })),
 } as const;
 
 export type ActionKey = keyof typeof ACTIONS;

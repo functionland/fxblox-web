@@ -20,7 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { concat, fromBase64Std, utf8 } from '../src/core/encoding.js';
 import { HttpRequestParser, decodeText, serializeResponse, type HttpRequest } from '../src/core/httpOverStream.js';
 import { buildSignedDigest } from '../src/core/signing.js';
-import { FulaWebError, blockchain, configure, fula, fxblox, getClientState, resetConfig } from '../src/index.js';
+import { FulaWebError, blockchain, configure, fula, fxblox, getClientState, getDebugLog, resetConfig } from '../src/index.js';
 import { createNodeNode } from '../src/node/createNodeNode.js';
 
 // Identities from test/vectors/identity.json (go-fula golden vectors)
@@ -28,6 +28,7 @@ const AUTHORIZED_SECRET = Array.from({ length: 64 }, (_, i) => i).join(',');
 const AUTHORIZED_PEER = '12D3KooWPnaMDrD7QLZKiT2iktjm9Kucx7XEPrSCUS6TTBbYuiRj';
 const UNAUTHORIZED_SECRET = Array.from({ length: 64 }, (_, i) => 255 - i).join(',');
 const UNAUTHORIZED_PEER = '12D3KooWGP58fHqVhWH5kD2FwNjWntFk3p3D6HMayqzwvWvZQ3vu';
+const NAS_PASSWORD = 'abcde-23456-fghjk-78923';
 
 interface SeenRequest {
   action: string;
@@ -46,6 +47,8 @@ interface FakeBox {
   pings: number;
   /** Box clock offset relative to the test process (simulates a Blox whose clock is off). */
   skewMs: number;
+  /** What `nas-credentials` answers (go-fula bl_nas.go). */
+  nas: 'ok' | 'not_provisioned' | 'garbage';
   authorizer: Set<string>;
   stop(): Promise<void>;
 }
@@ -115,6 +118,24 @@ function dispatch(box: FakeBox, action: string, rawBody: string): { status: numb
       const body = JSON.parse(rawBody) as { pool_id: number };
       return { status: 202, response: jsonResponse(202, 'Accepted', JSON.stringify({ account: 'acct', pool_id: body.pool_id })) };
     }
+    case 'nas-credentials': {
+      const body = JSON.parse(rawBody) as { blox_peer_id?: string };
+      if (body.blox_peer_id !== box.peerId) {
+        return { status: 400, response: jsonResponse(400, 'Bad Request', JSON.stringify({ status: 'blox_peer_mismatch' })) };
+      }
+      if (box.nas === 'not_provisioned') {
+        return { status: 404, response: jsonResponse(404, 'Not Found', JSON.stringify({ status: 'not_provisioned' })) };
+      }
+      if (box.nas === 'garbage') return { status: 200, response: jsonResponse(200, 'OK', `not json ${NAS_PASSWORD}`) };
+      return {
+        status: 200,
+        response: jsonResponse(
+          200,
+          'OK',
+          JSON.stringify({ status: 'ok', username: 'fxnas', password: NAS_PASSWORD, share: 'SharedFolder', created_at: '2026-10-03T00:00:00Z', hostname: 'fxblox-rk1' }),
+        ),
+      };
+    }
     default:
       return { status: 400, response: jsonResponse(400, 'Bad Request', JSON.stringify({ message: 'unknown action', description: action })) };
   }
@@ -137,6 +158,7 @@ async function startFakeBox(): Promise<FakeBox> {
     requests: [],
     pings: 0,
     skewMs: 0,
+    nas: 'ok',
     authorizer: new Set([AUTHORIZED_PEER]),
     stop: async () => {
       await node.stop();
@@ -336,6 +358,40 @@ describe('e2e: real client ↔ js-libp2p fake Blox over TCP', () => {
     box.skewMs = 0;
   });
 
+  it('blockchain.nasCredentials() returns the sign-in details and never logs the password', async () => {
+    const res = await blockchain.nasCredentials(box.peerId);
+    expect(res).toEqual({
+      status: 'ok',
+      username: 'fxnas',
+      password: NAS_PASSWORD,
+      share: 'SharedFolder',
+      created_at: '2026-10-03T00:00:00Z',
+      hostname: 'fxblox-rk1',
+    });
+    const seen = box.requests.filter((r) => r.action === 'nas-credentials').pop();
+    expect(seen?.status).toBe(200);
+    expect(JSON.parse(seen?.rawBody ?? '{}')).toEqual({ blox_peer_id: box.peerId });
+    // without an argument the dialed Blox's peer id is used
+    await expect(blockchain.nasCredentials()).resolves.toMatchObject({ username: 'fxnas' });
+    expect(JSON.stringify(getDebugLog())).not.toContain(NAS_PASSWORD);
+  });
+
+  it('nasCredentials() rejects with the Blox status (400 mismatch, 404 not set up) and BAD_RESPONSE without echoing the body', async () => {
+    await expect(blockchain.nasCredentials('12D3KooWsomeOtherBlox')).rejects.toMatchObject({ code: 'HTTP_ERROR', status: 400, action: 'nas-credentials' });
+
+    box.nas = 'not_provisioned';
+    await expect(blockchain.nasCredentials(box.peerId)).rejects.toMatchObject({ code: 'HTTP_ERROR', status: 404, action: 'nas-credentials' });
+
+    box.nas = 'garbage';
+    const err = await blockchain.nasCredentials(box.peerId).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(FulaWebError);
+    expect((err as FulaWebError).code).toBe('BAD_RESPONSE');
+    expect((err as FulaWebError).message).not.toContain(NAS_PASSWORD);
+    expect((err as FulaWebError).cause).toBeUndefined();
+    box.nas = 'ok';
+    expect(JSON.stringify(getDebugLog())).not.toContain(NAS_PASSWORD);
+  });
+
   it('an unauthorized identity gets NOT_AUTHORIZED after exactly one retry', async () => {
     const peerId = await fula.newClient(UNAUTHORIZED_SECRET, '', box.addr, '', false, true, true);
     expect(peerId).toBe(UNAUTHORIZED_PEER);
@@ -353,6 +409,11 @@ describe('e2e: real client ↔ js-libp2p fake Blox over TCP', () => {
 
     // fxblox.* re-throws
     await expect(fxblox.fetchContainerLogs('fula_go', '50')).rejects.toMatchObject({ code: 'NOT_AUTHORIZED' });
+
+    // nasCredentials re-throws too (owner-only on the Blox; old firmware also answers 401)
+    const beforeNas = box.requests.length;
+    await expect(blockchain.nasCredentials(box.peerId)).rejects.toMatchObject({ code: 'NOT_AUTHORIZED', status: 401, action: 'nas-credentials' });
+    expect(box.requests.slice(beforeNas).map((r) => r.status)).toEqual([401, 401]);
   });
 
   it('newClient reuses the running client unless refresh=true; logout stops it', async () => {
