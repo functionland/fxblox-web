@@ -183,6 +183,14 @@
       "networkSwitchRequired": {
         "title": "Network Switch Required",
         "message": "Please use the network notification above to switch to the correct network, then try again."
+      },
+      "clusterIdUnknown": {
+        "title": "Blox Not Ready",
+        "message": "This Blox's cluster ID isn't known yet. Open the Blox tab while the Blox is online, then try again."
+      },
+      "bloxNotNotified": {
+        "title": "Blox Not Updated Yet",
+        "message": "The pool change is done on-chain, but your Blox couldn't be told right now. It will catch up on its own."
       }
     },
     "poolCard": {

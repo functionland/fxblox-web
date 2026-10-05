@@ -13,17 +13,17 @@ export interface PoolJoinResponse {
   poolID: number;
 }
 
-export interface PoolLeaveResponse {
-  account: string;
-  poolID: number;
-}
-
 interface PoolsActionSlice {
   setHasHydrated: (isHydrated: boolean) => void;
   getPools: () => Promise<void>;
   joinPool: (poolID: number) => Promise<PoolJoinResponse>;
   forceRejoinPool: (poolID: number) => Promise<PoolJoinResponse>;
-  leavePool: (poolID: number) => Promise<PoolLeaveResponse>;
+  /**
+   * After the member wallet removed the Blox from `poolID` on-chain (or cancelled its request), tell the Blox so it
+   * drops the pool from its config (go-fula `fula-pool-leave` → 202). Best effort: false when the Blox is offline or
+   * refuses; go-fula then reconciles against the chain on its own.
+   */
+  notifyBloxLeftPool: (poolID: number) => Promise<boolean>;
   cancelPoolJoin: (poolID: number) => Promise<void>;
   reset: () => void;
   setDirty: () => void;
@@ -187,45 +187,16 @@ export const usePoolsStore = create<PoolsModelSlice>()(
           throw error;
         }
       },
-      leavePool: async (poolID: number) => {
-        let blockchainResponse: PoolLeaveResponse | null = null;
-        let blockchainError: Error | null = null;
-
+      notifyBloxLeftPool: async (poolID: number) => {
         try {
           await fula.isReady(false);
           const selectedChain = useSettingsStore.getState().selectedChain;
-
-          try {
-            blockchainResponse = await blockchain.leavePoolWithChain(poolID, selectedChain);
-          } catch (error) {
-            blockchainError = toError(error);
-            console.log('leavePoolWithChain error:', blockchainError);
-          }
-
-          try {
-            const { getContractService } = await import('@/contracts/contractService');
-            const contractService = getContractService(selectedChain);
-            const clusterPeerId = useBloxsStore.getState().getCurrentClusterPeerId();
-            if (!clusterPeerId) {
-              throw new Error('Cluster peer ID is not available — ensure blox is connected');
-            }
-            await contractService.leavePool(poolID.toString(), clusterPeerId);
-          } catch (contractError) {
-            console.log('contractService.leavePool error:', contractError);
-          }
-
+          await blockchain.leavePoolWithChain(poolID, selectedChain);
           set({ dirty: true });
-
-          if (blockchainResponse) {
-            return blockchainResponse;
-          }
-          if (blockchainError) {
-            throw blockchainError;
-          }
-          throw new Error('Unknown error in leavePool');
+          return true;
         } catch (error) {
-          console.log('leavePool error:', error);
-          throw error;
+          console.log('notifyBloxLeftPool error:', toError(error));
+          return false;
         }
       },
       setDirty: () => {

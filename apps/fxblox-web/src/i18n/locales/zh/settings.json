@@ -183,6 +183,14 @@
       "networkSwitchRequired": {
         "title": "需要切换网络",
         "message": "请使用上方的网络通知切换到正确的网络，然后重试。"
+      },
+      "clusterIdUnknown": {
+        "title": "Blox 尚未就绪",
+        "message": "尚不知道此 Blox 的集群 ID。请在 Blox 在线时打开 Blox 标签页，然后重试。"
+      },
+      "bloxNotNotified": {
+        "title": "Blox 尚未更新",
+        "message": "矿池变更已在链上完成，但暂时无法通知您的 Blox。它会自行同步。"
       }
     },
     "poolCard": {

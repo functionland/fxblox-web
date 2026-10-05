@@ -184,14 +184,9 @@ export const useContractIntegration = (options?: { showConnectedNotification?: b
       } catch (error: any) {
         console.error(`executeContractCall: ${operationName} failed:`, error);
 
-        let errorMessage = error.message || `${operationName} failed`;
-        if (error.code === 'INSUFFICIENT_FUNDS') {
-          errorMessage = 'Insufficient funds for transaction';
-        } else if (error.code === 'USER_REJECTED') {
-          errorMessage = 'Transaction was rejected by user';
-        } else if (error.reason) {
-          errorMessage = error.reason;
-        }
+        // contractService.handleError already turns wallet / RPC errors (rejection, missing gas, reverts) into
+        // user-facing messages, so show them as they are.
+        const errorMessage = error.message || error.reason || `${operationName} failed`;
 
         queueToast({ type: 'error', title: 'Transaction Failed', message: errorMessage });
         return null;
@@ -304,13 +299,14 @@ export const usePoolOperations = () => {
     [executeContractCall, contractService],
   );
 
+  // `peerId` = the Blox's ipfs-cluster peer id (what joins register on-chain), never the wallet address.
   const leavePool = useCallback(
-    async (poolId: string, peerId?: string) => executeContractCall(() => contractService!.leavePool(poolId, peerId), 'Leave Pool'),
+    async (poolId: string, peerId: string) => executeContractCall(() => contractService!.leavePool(poolId, peerId), 'Leave Pool'),
     [executeContractCall, contractService],
   );
 
   const cancelJoinRequest = useCallback(
-    async (poolId: string, peerId?: string) => executeContractCall(() => contractService!.cancelJoinRequest(poolId, peerId), 'Cancel Join Request'),
+    async (poolId: string, peerId: string) => executeContractCall(() => contractService!.cancelJoinRequest(poolId, peerId), 'Cancel Join Request'),
     [executeContractCall, contractService],
   );
 

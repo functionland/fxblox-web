@@ -2,8 +2,9 @@
  * Port of apps/box/src/screens/Settings/PoolDetails.screen.tsx (route /settings/pools/:poolId — the detail
  * column of `PoolsLayout` at ≥ 1280px). Members via `contractService.getPoolMembers` (falls back to the pool's
  * `participants` from the RPC read when there is no contract service, e.g. manual signature), region /
- * network / membership rows, Join (join server), Leave (`destructive`; CONTRACT-ONLY on web — the mobile
- * `leavePoolViaAPI` route does not exist — with a chain + gas note), Force Rejoin, Refresh.
+ * network / membership rows, Join (join server), Leave (`destructive`; on-chain `removeMemberPeerId` from the member
+ * wallet with the Blox's cluster peer id — the mobile `leavePoolViaAPI` route does not exist — with a chain + gas
+ * note, then a best-effort notice to the Blox), Force Rejoin, Refresh.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
@@ -53,6 +54,7 @@ export default function PoolDetails() {
     contractService,
     isReady,
     connectedAccount,
+    currentClusterPeerId,
     userMemberPools,
     leavePool,
     joinPoolViaAPI,
@@ -60,6 +62,7 @@ export default function PoolDetails() {
   const { withCorrectNetwork } = useWalletNetwork();
   const selectedChain = useSettingsStore((state) => state.selectedChain);
   const forceRejoinPool = usePoolsStore((state) => state.forceRejoinPool);
+  const notifyBloxLeftPool = usePoolsStore((state) => state.notifyBloxLeftPool);
 
   const pool = pools.find((p) => p.poolID === poolId || p.poolId === poolId);
   const userIsMember = userMemberPools.includes(poolId);
@@ -142,6 +145,18 @@ export default function PoolDetails() {
 
   const handleLeavePool = async () => {
     if (!pool) return;
+    if (!isReady) {
+      queueToast({ type: 'error', title: t('pools.contractNotReady'), message: t('pools.connectWalletMessage') });
+      return;
+    }
+    if (!currentClusterPeerId) {
+      queueToast({
+        type: 'error',
+        title: t('settings.pools.clusterIdUnknown.title'),
+        message: t('settings.pools.clusterIdUnknown.message'),
+      });
+      return;
+    }
     const message = t('settings.poolDetails.leaveConfirm.message', {
       name: pool.name,
       chain: CHAIN_DISPLAY_NAMES[selectedChain],
@@ -159,20 +174,25 @@ export default function PoolDetails() {
     if (!ok) return;
     setRefreshing(true);
     try {
-      const result = await withCorrectNetwork(async () => leavePool(poolId));
+      const result = await withCorrectNetwork(async () => leavePool(poolId, currentClusterPeerId));
+      // null = executeContractCall already showed why it failed.
       if (result !== null) {
         queueToast({
           type: 'success',
           title: t('settings.poolDetails.leftPool.title'),
           message: t('settings.poolDetails.leftPool.message'),
         });
-        back(paths.settings.pools);
-      } else {
-        queueToast({
-          type: 'error',
-          title: t('settings.poolDetails.leaveFailed.title'),
-          message: t('settings.poolDetails.leaveFailed.message'),
+        // Tell the Blox to drop the pool (best effort; it reconciles with the chain on its own otherwise).
+        void notifyBloxLeftPool(parseInt(poolId, 10)).then((notified) => {
+          if (!notified) {
+            queueToast({
+              type: 'info',
+              title: t('settings.pools.bloxNotNotified.title'),
+              message: t('settings.pools.bloxNotNotified.message'),
+            });
+          }
         });
+        back(paths.settings.pools);
       }
     } catch (error) {
       queueToast({

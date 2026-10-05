@@ -2,8 +2,9 @@
  * Port of apps/box/src/screens/Settings/Pools.screen.tsx. Also the master column of `PoolsLayout` at ≥ 1280px
  * (the open pool gets a `selected` ring via the shared route params). Search + Refresh + list/grid toggle
  * (`FxHeader`), skeletons while loading, `PoolCard` per pool with the same join / cancel / leave / re-send /
- * force-rejoin logic. Web differences: leave and cancel are CONTRACT-ONLY (pools.fx.land has no /leave or
- * /cancel) and confirm first, naming the chain and a gas note on Base; the notifee foreground service around
+ * force-rejoin logic. Web differences: leave and cancel are on-chain calls from the member wallet with the Blox's
+ * cluster peer id (pools.fx.land has no /leave or /cancel), confirm first naming the chain and a gas note on Base,
+ * and afterwards tell the Blox to drop the pool (best effort); the notifee foreground service around
  * the leave transaction is gone (toasts only). The mobile screen's unreachable `wrappedJoinPoolViaAPI` /
  * `wrappedJoinPool` / `wrappedLeavePoolViaAPI` / `wrappedCancelJoinRequestViaAPI` wrappers (no UI called
  * them) and the never-read `allowJoin` state are not ported.
@@ -36,6 +37,7 @@ import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { useLogger } from '@/hooks/useLogger';
 import type { PoolData } from '@/hooks/usePools';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { usePoolsStore } from '@/stores/usePoolsStore';
 import { CHAIN_DISPLAY_NAMES } from '@/contracts/config';
 import type { SupportedChain } from '@/contracts/types';
 import type { TPool } from '@/models';
@@ -87,10 +89,12 @@ export default function Pools() {
     loadPools,
     isReady: contractReady,
     connectedAccount,
+    currentClusterPeerId,
     userMemberPools,
     userActiveRequests,
   } = usePoolsWithFallback();
   const selectedChain = useSettingsStore((state) => state.selectedChain);
+  const notifyBloxLeftPool = usePoolsStore((state) => state.notifyBloxLeftPool);
   const { withCorrectNetwork } = useWalletNetwork();
   const { linkedOnly } = useWalletStatus();
 
@@ -175,12 +179,40 @@ export default function Pools() {
   const poolName = (poolID: number): string =>
     pools.find((p) => poolIdOf(p) === String(poolID))?.name ?? String(poolID);
 
-  /** Contract-only leave (plan): confirm (chain + gas note on Base) → `withCorrectNetwork` → `leavePool`. */
-  const wrappedLeavePool = async (poolID: number) => {
+  const clusterIdUnknown = () => {
+    queueToast({
+      type: 'error',
+      title: t('settings.pools.clusterIdUnknown.title'),
+      message: t('settings.pools.clusterIdUnknown.message'),
+    });
+  };
+
+  /** After an on-chain leave / cancel, tell the Blox to drop the pool (best effort, never blocks the UI). */
+  const notifyBlox = (poolID: number) => {
+    void notifyBloxLeftPool(poolID).then((notified) => {
+      if (!notified) {
+        queueToast({
+          type: 'info',
+          title: t('settings.pools.bloxNotNotified.title'),
+          message: t('settings.pools.bloxNotNotified.message'),
+        });
+      }
+    });
+  };
+
+  /**
+   * Contract-only leave (plan): confirm (chain + gas note on Base) → `withCorrectNetwork` → `leavePool` with the
+   * Blox's cluster peer id → tell the Blox. Resolves true only when the on-chain leave succeeded.
+   */
+  const wrappedLeavePool = async (poolID: number): Promise<boolean> => {
     try {
       if (!contractReady) {
         notReady();
-        return;
+        return false;
+      }
+      if (!currentClusterPeerId) {
+        clusterIdUnknown();
+        return false;
       }
       const ok = await confirm({
         title: t('settings.pools.leaveConfirm.title'),
@@ -189,7 +221,7 @@ export default function Pools() {
         cancelText: t('settings.common.cancel'),
         destructive: true,
       });
-      if (!ok) return;
+      if (!ok) return false;
 
       console.log('wrappedLeavePool: Starting leave pool transaction...', { poolID });
       queueToast({
@@ -199,26 +231,23 @@ export default function Pools() {
         autoHideDuration: 3000,
       });
 
-      const result = await withCorrectNetwork(async () => leavePool(poolID.toString()));
+      const result = await withCorrectNetwork(async () =>
+        leavePool(poolID.toString(), currentClusterPeerId),
+      );
 
-      if (result !== null) {
-        console.log('wrappedLeavePool: Transaction successful, now refreshing pools...');
-        queueToast({
-          type: 'success',
-          title: t('pools.leftPoolSuccess'),
-          message: t('pools.leftPoolSuccessMessage'),
-          autoHideDuration: 4000,
-        });
-        setRefreshing(true);
-      } else {
-        console.warn('wrappedLeavePool: Leave pool returned null');
-        queueToast({
-          type: 'warning',
-          title: t('pools.transactionCancelled'),
-          message: t('pools.leavePoolCancelledMessage'),
-          autoHideDuration: 4000,
-        });
-      }
+      // null = executeContractCall already showed why it failed (rejected, no gas, not the member wallet, …).
+      if (result === null) return false;
+
+      console.log('wrappedLeavePool: Transaction successful, now refreshing pools...');
+      queueToast({
+        type: 'success',
+        title: t('pools.leftPoolSuccess'),
+        message: t('pools.leftPoolSuccessMessage'),
+        autoHideDuration: 4000,
+      });
+      notifyBlox(poolID);
+      setRefreshing(true);
+      return true;
     } catch (error) {
       console.error('wrappedLeavePool: Error occurred:', error);
       let errorTitle = t('pools.leavePoolError');
@@ -243,15 +272,23 @@ export default function Pools() {
       }
       queueToast({ type: 'error', title: errorTitle, message, autoHideDuration: 5000 });
       logger.logError('wrappedLeavePool', error);
+      return false;
     }
   };
 
-  /** Contract-only cancel (plan): confirm → `cancelJoinRequest` on the pool contract. */
-  const wrappedCancelJoinPool = async (poolID: number) => {
+  /**
+   * Contract-only cancel (plan): confirm → `cancelJoinRequest` with the Blox's cluster peer id → tell the Blox (the
+   * join already wrote the pool into its config). Resolves true only when the on-chain cancel succeeded.
+   */
+  const wrappedCancelJoinPool = async (poolID: number): Promise<boolean> => {
     try {
       if (!contractReady) {
         notReady();
-        return;
+        return false;
+      }
+      if (!currentClusterPeerId) {
+        clusterIdUnknown();
+        return false;
       }
       const ok = await confirm({
         title: t('settings.pools.cancelConfirm.title'),
@@ -260,19 +297,21 @@ export default function Pools() {
         cancelText: t('settings.pools.cancelConfirm.keep'),
         destructive: true,
       });
-      if (!ok) return;
+      if (!ok) return false;
 
       setRefreshing(true);
-      const result = await cancelJoinRequest(poolID.toString());
-      if (result !== null) {
-        queueToast({
-          type: 'success',
-          title: t('settings.pools.joinRequestCancelled.title'),
-          message: t('settings.pools.joinRequestCancelled.message'),
-        });
-      }
+      const result = await cancelJoinRequest(poolID.toString(), currentClusterPeerId);
+      if (result === null) return false;
+      queueToast({
+        type: 'success',
+        title: t('settings.pools.joinRequestCancelled.title'),
+        message: t('settings.pools.joinRequestCancelled.message'),
+      });
+      notifyBlox(poolID);
+      return true;
     } catch (e) {
       handlePoolActionErrors(t('settings.pools.errorCancelling'), errorMessage(e));
+      return false;
     } finally {
       setRefreshing(false);
     }

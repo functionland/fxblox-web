@@ -1,7 +1,8 @@
 /**
  * pools.fx.land join server. Only `/join` (+429 handling) and `/health` exist server-side — the mobile app's
- * `/leave` and `/cancel` calls were dead routes and are NOT ported; leaving / cancelling goes through the
- * contract (`usePools.leavePool` / `cancelJoinRequest`).
+ * `/leave` and `/cancel` calls were dead routes and are NOT ported. The server records the user's own wallet as
+ * the member (`addMember(pool, account, clusterPeerId)`), so leaving / cancelling is the user's own contract call
+ * (`usePoolOperations.leavePool` / `cancelJoinRequest` with the cluster peer id).
  */
 import { env } from '@/config/env';
 import type { SupportedChain } from '@/contracts/types';

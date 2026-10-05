@@ -20,6 +20,7 @@ const hook = vi.hoisted(() => ({
     contractService: null as null | { getPoolMembers: (id: string) => Promise<string[]> },
     isReady: false,
     connectedAccount: '0xAAA0000000000000000000000000000000000001',
+    currentClusterPeerId: 'cluster1' as string | undefined,
     userMemberPools: [] as string[],
     leavePool: vi.fn(async () => undefined as void | null),
     joinPoolViaAPI: vi.fn(async () => ({ success: true, message: 'Join request queued' })),
@@ -29,9 +30,10 @@ vi.mock('@/hooks/usePoolsWithFallback', () => ({ usePoolsWithFallback: () => hoo
 vi.mock('@/hooks/useWalletNetwork', () => ({
   useWalletNetwork: () => ({ withCorrectNetwork: async <T,>(op: () => Promise<T>) => op() }),
 }));
+const leavePoolWithChain = vi.hoisted(() => vi.fn(async () => ({ account: '', poolID: 1 })));
 vi.mock('@/lib/fula', () => ({
   fula: { isReady: vi.fn(async () => true) },
-  blockchain: { joinPoolWithChain: vi.fn(async () => ({ account: 'a', poolID: 1 })) },
+  blockchain: { joinPoolWithChain: vi.fn(async () => ({ account: 'a', poolID: 1 })), leavePoolWithChain },
   fxblox: {},
 }));
 
@@ -83,8 +85,9 @@ describe('PoolDetails', () => {
     expect(dialog).toHaveTextContent('Base Network');
     expect(dialog).toHaveTextContent('Base charges gas fees');
     fireEvent.click(screen.getByRole('button', { name: 'Leave' }));
-    await waitFor(() => expect(hook.state.leavePool).toHaveBeenCalledWith('1'));
+    await waitFor(() => expect(hook.state.leavePool).toHaveBeenCalledWith('1', 'cluster1'));
     expect(await screen.findByText('Left Pool')).toBeInTheDocument();
+    await waitFor(() => expect(leavePoolWithChain).toHaveBeenCalledWith(1, 'base'));
     await waitFor(() => expect(router.state.location.pathname).toBe('/settings/pools'));
     await waitFor(() => expect(confirmDialog()).toBeNull());
   });
@@ -111,6 +114,30 @@ describe('PoolDetails', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Join' }));
     expect(await screen.findByText('Join Failed')).toBeInTheDocument();
     expect(screen.getByText('Blox not registered')).toBeInTheDocument();
+  });
+
+  it('leave is refused before the confirm when contracts are not ready', async () => {
+    hook.state.userMemberPools = ['1'];
+    renderRoute(routes, '/settings/pools/1');
+    fireEvent.click(await screen.findByTestId('pool-details-leave'));
+    expect(await screen.findByText('Contract Not Ready')).toBeInTheDocument();
+    expect(confirmDialog()).toBeNull();
+    expect(hook.state.leavePool).not.toHaveBeenCalled();
+  });
+
+  it('leave is refused before the confirm when the Blox cluster id is unknown', async () => {
+    hook.state.userMemberPools = ['1'];
+    hook.state.isReady = true;
+    hook.state.currentClusterPeerId = undefined;
+    try {
+      renderRoute(routes, '/settings/pools/1');
+      fireEvent.click(await screen.findByTestId('pool-details-leave'));
+      expect(await screen.findByText('Blox Not Ready')).toBeInTheDocument();
+      expect(confirmDialog()).toBeNull();
+      expect(hook.state.leavePool).not.toHaveBeenCalled();
+    } finally {
+      hook.state.currentClusterPeerId = 'cluster1';
+    }
   });
 
   it('unknown pool id → "Pool not found" once the list is loaded', () => {

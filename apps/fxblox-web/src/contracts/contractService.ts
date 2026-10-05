@@ -217,146 +217,71 @@ export class ContractService {
     return pool.requiredTokens;
   }
 
-  async leavePool(poolId: string, peerId?: string): Promise<void> {
+  /**
+   * Leave a pool: `removeMemberPeerId(poolId, bytes32(peerId))`, sent from the connected wallet. `peerId` is the
+   * Blox's ipfs-cluster peer id — the id joins register on-chain (join server `addMember` / contract
+   * `joinPoolRequest`) — never the wallet address. The contract only lets the member account (or the pool creator /
+   * an admin) remove a peer, and SKALE returns no revert data, so ownership is checked first to give a readable error
+   * before the wallet is asked to sign.
+   */
+  async leavePool(poolId: string, peerId: string): Promise<void> {
     try {
-      if (!this.poolStorageContract) throw new Error('Contract not initialized');
-      if (!this.signer) throw new Error('Signer not available');
+      if (!this.poolStorageContract || !this.provider || !this.signer) throw new Error('Contract not initialized');
+      if (!peerId) throw new Error('PeerId is required for leaving a pool');
 
-      // Use the connected account's peerId if not provided
-      const connectedAccount = await this.getConnectedAccount();
-      if (!connectedAccount) throw new Error('No connected account');
-      
-      const peerIdToUse = peerId || connectedAccount;
-      console.log('leavePool: Using peerId:', peerIdToUse);
-      
-      // Convert peerId to bytes32
-      const peerIdBytes32 = await peerIdToBytes32(peerIdToUse);
-      console.log('leavePool: Contract address:', this.poolStorageContract.address);
-      console.log('leavePool: Current chain:', this.chain);
-      
-      const chainConfig = getChainConfigByName(this.chain);
-      if (!chainConfig) {
-        throw new Error(`Invalid chain configuration for ${this.chain}`);
+      const from = await this.signer.getAddress();
+      const { isMember, memberAddress } = await this.isPeerIdMemberOfPool(poolId, peerId);
+      if (!isMember) {
+        throw new Error(`This Blox is not a member of pool ${poolId} on ${CHAIN_DISPLAY_NAMES[this.chain]}.`);
       }
-      console.log('leavePool: Expected contract address from config:', chainConfig.contracts.poolStorage);
-      console.log('leavePool: Converted peerId to bytes32:', peerIdBytes32);
-      console.log('leavePool: bytes32 length:', peerIdBytes32.length);
-      console.log('leavePool: bytes32 type:', typeof peerIdBytes32);
-      console.log('leavePool: Full conversion details:', { 
-        originalPeerId: peerIdToUse, 
-        convertedBytes32: peerIdBytes32,
-        poolId: poolId,
-        poolIdNumber: Number(poolId)
+      if (memberAddress.toLowerCase() !== from.toLowerCase()) {
+        const pool = await this.getPool(poolId);
+        if (String(pool.creator).toLowerCase() !== from.toLowerCase()) {
+          throw new Error(`This Blox joined pool ${poolId} with wallet ${memberAddress}. Connect that wallet to leave.`);
+        }
+      }
+
+      const peerIdBytes32 = await peerIdToBytes32(peerId);
+      const to = getChainConfigByName(this.chain).contracts.poolStorage;
+      const iface = this.poolStorageContract.interface;
+      const data = iface.encodeFunctionData('removeMemberPeerId(uint32,bytes32)', [Number(poolId), peerIdBytes32]);
+
+      // Simulate as the sender: the contract checks msg.sender, so a call without `from` always reverts. A revert
+      // throws on SKALE but comes back as the error data on Base, so a non-empty result is treated as a revert too.
+      const simulated = await this.readOnlyProvider!.call({ from, to, data });
+      if (simulated && simulated !== '0x') {
+        let reason = 'the contract rejected it';
+        try {
+          reason = iface.parseError(simulated).name;
+        } catch {
+          // Unknown error selector — keep the generic reason.
+        }
+        throw new Error(`Leaving pool ${poolId} would fail (${reason}).`);
+      }
+
+      const txHash = await this.provider.provider.request!({
+        method: 'eth_sendTransaction',
+        params: [{ from, to, data, gas: ethers.utils.hexlify(150_000), value: '0x0' }],
       });
-      console.log('leavePool: About to call removeMemberPeerId on contract');
-      console.log('leavePool: removeMemberPeerId exists:', typeof this.poolStorageContract.removeMemberPeerId);
+      console.log('leavePool: tx sent, hash:', txHash);
 
-      try {
-        // First, verify user is actually a member of this pool
-        console.log('leavePool: Checking membership status...');
-        try {
-          const membershipResult = await this.isPeerIdMemberOfPool(poolId, peerIdToUse);
-          console.log('leavePool: Membership check result:', membershipResult);
-          
-          if (!membershipResult.isMember) {
-            console.error('leavePool: User is not a member of this pool');
-            throw new Error(`You are not a member of pool ${poolId}. Cannot leave a pool you haven't joined.`);
-          }
-        } catch (membershipError) {
-          console.error('leavePool: Failed to check membership:', membershipError);
-          // Continue anyway, let the contract handle the validation
-        }
-
-        // Dry-run simulation first
-        const pid = Number(poolId);
-        const poolStorageAddress = chainConfig.contracts.poolStorage;
-        const iface = this.poolStorageContract.interface;
-        const data = iface.encodeFunctionData(
-          "removeMemberPeerId(uint32,bytes32)",
-          [pid, peerIdBytes32]
-        );
-        
-        try {
-          await this.readOnlyProvider!.call({
-            to: poolStorageAddress,
-            data,
-          });
-          console.log("leavePool: Dry-run simulation succeeded");
-        } catch (err: any) {
-          console.error("leavePool: Dry-run simulation failed:", err);
-          
-          // Try to decode specific error types
-          if (err.data && err.data !== '0x') {
-            try {
-              const decoded = iface.parseError(err.data);
-              console.error("leavePool: Decoded error:", decoded.name, decoded.args);
-              
-              // Handle specific error cases
-              switch (decoded.name) {
-                case 'NM':
-                  throw new Error('You are not a member of this pool.');
-                case 'OCA':
-                  throw new Error('Only contract admin can perform this action.');
-                case 'CannotRemoveSelf':
-                  throw new Error('You cannot remove yourself from the pool.');
-                case 'AccessControlUnauthorizedAccount':
-                  throw new Error('You do not have permission to leave this pool.');
-                default:
-                  throw new Error(`Pool operation failed: ${decoded.name}`);
-              }
-            } catch (parseError) {
-              console.error("leavePool: Failed to parse error:", parseError);
-            }
-          }
-          
-          // If we can't decode the error, provide a generic message
-          throw new Error('Pool leave operation would fail. Please check if you are a member of this pool and try again.');
-        }
-
-        console.log("leavePool: Sending actual transaction");
-
-        const gasHex = ethers.utils.hexlify(150_000); 
-        const txHash = await this.provider!.provider.request!({
-          method: 'eth_sendTransaction',
-          params: [
-            {
-              from: await this.signer!.getAddress(),
-              to: poolStorageAddress,
-              data,
-              gas: gasHex,
-              value: '0x0',
-            },
-          ],
-        });
-        console.log('leavePool: User confirmed transaction – hash:', txHash);
-
-        // Wait for transaction confirmation
-        const receipt = await this.readOnlyProvider!.waitForTransaction(txHash);
-        if (receipt.status === 0) {
-          console.error('leavePool: transaction reverted on-chain', { txHash });
-          throw new Error('Leave pool transaction reverted on-chain.');
-        }
-        console.log('leavePool: Transaction confirmed', { txHash });
-      } catch (contractCallError: any) {
-        console.error('leavePool: Contract call failed:', contractCallError);
-        console.error('leavePool: Error details:', {
-          message: contractCallError?.message,
-          code: contractCallError?.code,
-          reason: contractCallError?.reason,
-          data: contractCallError?.data,
-          transaction: contractCallError?.transaction
-        });
-        throw contractCallError;
+      const receipt = await this.readOnlyProvider!.waitForTransaction(txHash);
+      if (receipt.status === 0) {
+        throw new Error('Leave pool transaction reverted on-chain.');
       }
+      console.log('leavePool: tx confirmed', { txHash });
     } catch (error) {
-      console.error('leavePool: Error occurred', error);
       throw this.handleError(error);
     }
   }
 
-  async cancelJoinRequest(poolId: string, peerId?: string): Promise<void> {
+  /**
+   * Withdraw a pending join request for the Blox's cluster `peerId`. Like leaving, the contract only accepts the
+   * account that sent the request (or the pool creator / an admin), so that is checked first for a readable error.
+   */
+  async cancelJoinRequest(poolId: string, peerId: string): Promise<void> {
     try {
-      if (!this.poolStorageContract) throw new Error('Contract not initialized');
+      if (!this.poolStorageContract || !this.signer || !this.readOnlyProvider) throw new Error('Contract not initialized');
 
       if (!peerId) {
         throw new Error('PeerId is required for canceling join request');
@@ -365,6 +290,23 @@ export class ContractService {
       // Convert peerId to bytes32 format for contract call
       const peerIdBytes32 = await peerIdToBytes32(peerId);
       console.log('cancelJoinRequest: Converted peerId to bytes32', { peerId, peerIdBytes32 });
+
+      const from = await this.signer.getAddress();
+      const readOnlyContract = new ethers.Contract(
+        getChainConfigByName(this.chain).contracts.poolStorage,
+        POOL_STORAGE_ABI,
+        this.readOnlyProvider
+      );
+      const request = await readOnlyContract.joinRequests(poolId, peerIdBytes32);
+      if (Number(request.status) !== 1 || request.account === ethers.constants.AddressZero) {
+        throw new Error(`This Blox has no pending request to join pool ${poolId} on ${CHAIN_DISPLAY_NAMES[this.chain]}.`);
+      }
+      if (String(request.account).toLowerCase() !== from.toLowerCase()) {
+        const pool = await this.getPool(poolId);
+        if (String(pool.creator).toLowerCase() !== from.toLowerCase()) {
+          throw new Error(`This join request was sent from wallet ${request.account}. Connect that wallet to cancel it.`);
+        }
+      }
 
       const tx = await this.poolStorageContract.cancelJoinRequest(poolId, peerIdBytes32, {
         gasLimit: METHOD_GAS_LIMITS.cancelJoinRequest,
@@ -1302,9 +1244,12 @@ export class ContractService {
       } else {
         errorMessage = 'Network connection failed. Please check your internet connection.';
       }
-    } else if (error.code === 'INSUFFICIENT_FUNDS') {
-      errorMessage = 'Insufficient funds for transaction.';
-    } else if (error.code === 'USER_REJECTED') {
+    } else if (error.code === 'INSUFFICIENT_FUNDS' || /insufficient funds/i.test(String(error.message))) {
+      // Wallets report a missing fee balance as a JSON-RPC error, not the ethers code — name the chain's gas token.
+      const gasToken = this.chain === 'base' ? 'ETH on Base' : 'sFUEL on SKALE';
+      errorMessage = `Not enough ${gasToken} to pay the network fee. Top up your wallet and try again.`;
+    } else if (error.code === 'USER_REJECTED' || error.code === 'ACTION_REJECTED' || error.code === 4001) {
+      // 4001 = EIP-1193 "user rejected the request"; ACTION_REJECTED = ethers v5's name for it.
       errorMessage = 'Transaction was rejected by user.';
     } else if (error.code === 'TIMEOUT' || error.message?.includes('timeout')) {
       errorMessage = 'Request timed out. Please try again.';

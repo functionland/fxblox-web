@@ -26,6 +26,7 @@ const hook = vi.hoisted(() => ({
     loadPools: vi.fn(async () => undefined),
     isReady: true,
     connectedAccount: '0xACC0000000000000000000000000000000000001' as string | undefined,
+    currentClusterPeerId: 'cluster1' as string | undefined,
     userMemberPools: [] as string[],
     userActiveRequests: [] as string[],
   },
@@ -49,10 +50,14 @@ vi.mock('@/wallet/useWallet', () => ({
 const fulaMock = vi.hoisted(() => ({
   isReady: vi.fn(async () => true),
   joinPoolWithChain: vi.fn(async () => ({ account: 'a', poolID: 1 })),
+  leavePoolWithChain: vi.fn(async () => ({ account: '', poolID: 1 })),
 }));
 vi.mock('@/lib/fula', () => ({
   fula: { isReady: fulaMock.isReady },
-  blockchain: { joinPoolWithChain: fulaMock.joinPoolWithChain, leavePoolWithChain: vi.fn() },
+  blockchain: {
+    joinPoolWithChain: fulaMock.joinPoolWithChain,
+    leavePoolWithChain: fulaMock.leavePoolWithChain,
+  },
   fxblox: {},
 }));
 
@@ -119,10 +124,14 @@ describe('Pools', () => {
     hook.state.error = null;
     hook.state.userMemberPools = [];
     hook.state.userActiveRequests = [];
+    hook.state.currentClusterPeerId = 'cluster1';
     vi.clearAllMocks();
     const ok: JoinResponse = { status: 'ok', msg: 'ok', transactionHash: '0x1234567890abcdef' };
     api.joinPool.mockResolvedValue(ok);
     fulaMock.joinPoolWithChain.mockResolvedValue({ account: 'a', poolID: 1 });
+    fulaMock.leavePoolWithChain.mockResolvedValue({ account: '', poolID: 1 });
+    hook.state.leavePool.mockResolvedValue(undefined);
+    hook.state.cancelJoinRequest.mockResolvedValue(undefined);
   });
 
   it('loads the list (skeleton → cards), searches, refreshes and opens the details route', async () => {
@@ -234,10 +243,11 @@ describe('Pools', () => {
     expect(stored.step2Error).toContain('401');
   });
 
-  it('leave is contract-only with a chain + gas confirm on Base', async () => {
+  it('leave sends the Blox cluster peer id on-chain (chain + gas confirm on Base), then tells the Blox', async () => {
     hook.state.pools = [pool('1', 'Alpha', { joined: true, numVotes: 2, numVoters: 3 })];
     hook.state.userMemberPools = ['1'];
     useSettingsStore.setState({ selectedChain: 'base' });
+    await kvStore.setItem('joinState_base_1_p1', JSON.stringify({ step1Complete: true, step2Complete: true }));
     renderRoute(routes, '/settings/pools');
     const card = await screen.findByTestId('pool-card-1');
     expect(card).toHaveTextContent('Joined');
@@ -248,7 +258,10 @@ describe('Pools', () => {
     expect(dialog).toHaveTextContent('Leave pool "Alpha" on Base Network');
     expect(dialog).toHaveTextContent('Base charges gas fees');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
-    await waitFor(() => expect(hook.state.leavePool).toHaveBeenCalledWith('1'));
+    // The cluster peer id — never the wallet address — is what joins register on-chain.
+    await waitFor(() => expect(hook.state.leavePool).toHaveBeenCalledWith('1', 'cluster1'));
+    await waitFor(() => expect(fulaMock.leavePoolWithChain).toHaveBeenCalledWith(1, 'base'));
+    await waitFor(async () => expect(await kvStore.getItem('joinState_base_1_p1')).toBeNull());
     // Mobile order: the "Leaving Pool" info toast (3 s) shows first; the success toast is queued behind it.
     expect(await screen.findByText('Leaving Pool')).toBeInTheDocument();
     expect(
@@ -256,7 +269,47 @@ describe('Pools', () => {
     ).toBeInTheDocument();
   }, 10_000);
 
-  it('cancel request is contract-only with a confirm; the card shows the vote count', async () => {
+  it('a failed leave keeps the join progress, does not tell the Blox and shows no misleading toast', async () => {
+    hook.state.pools = [pool('1', 'Alpha', { joined: true })];
+    hook.state.userMemberPools = ['1'];
+    hook.state.leavePool.mockResolvedValueOnce(null); // executeContractCall already toasted the reason
+    await kvStore.setItem('joinState_1_p1', JSON.stringify({ step1Complete: true, step2Complete: true }));
+    renderRoute(routes, '/settings/pools');
+    fireEvent.click(within(await screen.findByTestId('pool-card-1')).getByTestId('pool-1-leave'));
+    fireEvent.click(within(await screen.findByTestId('fx-confirm')).getByRole('button', { name: 'Leave' }));
+    await waitFor(() => expect(hook.state.leavePool).toHaveBeenCalledWith('1', 'cluster1'));
+    await waitFor(() => expect(confirmDialog()).toBeNull());
+    expect(await kvStore.getItem('joinState_1_p1')).not.toBeNull();
+    expect(fulaMock.leavePoolWithChain).not.toHaveBeenCalled();
+    expect(screen.queryByText('Left Pool Successfully')).toBeNull();
+    expect(screen.queryByText('Transaction Cancelled')).toBeNull();
+  });
+
+  it('refuses to leave when the Blox cluster peer id is unknown', async () => {
+    hook.state.pools = [pool('1', 'Alpha', { joined: true })];
+    hook.state.userMemberPools = ['1'];
+    hook.state.currentClusterPeerId = undefined;
+    renderRoute(routes, '/settings/pools');
+    fireEvent.click(within(await screen.findByTestId('pool-card-1')).getByTestId('pool-1-leave'));
+    expect(await screen.findByText('Blox Not Ready')).toBeInTheDocument();
+    expect(confirmDialog()).toBeNull();
+    expect(hook.state.leavePool).not.toHaveBeenCalled();
+  });
+
+  it('when the Blox cannot be told, the on-chain leave still succeeds and an info toast explains it', async () => {
+    hook.state.pools = [pool('1', 'Alpha', { joined: true })];
+    hook.state.userMemberPools = ['1'];
+    fulaMock.leavePoolWithChain.mockRejectedValueOnce(new Error('blox offline'));
+    renderRoute(routes, '/settings/pools');
+    fireEvent.click(within(await screen.findByTestId('pool-card-1')).getByTestId('pool-1-leave'));
+    fireEvent.click(within(await screen.findByTestId('fx-confirm')).getByRole('button', { name: 'Leave' }));
+    await waitFor(() => expect(fulaMock.leavePoolWithChain).toHaveBeenCalledWith(1, 'skale'));
+    expect(
+      await screen.findByText('Blox Not Updated Yet', {}, { timeout: 8000 }),
+    ).toBeInTheDocument();
+  }, 12_000);
+
+  it('cancel request sends the cluster peer id with a confirm, then tells the Blox; the card shows the vote count', async () => {
     hook.state.pools = [pool('1', 'Alpha', { requested: true, numVotes: 1, numVoters: 3 })];
     renderRoute(routes, '/settings/pools');
     const card = await screen.findByTestId('pool-card-1');
@@ -265,8 +318,9 @@ describe('Pools', () => {
     const dialog = await screen.findByTestId('fx-confirm');
     expect(dialog).toHaveTextContent('Cancel your join request for "Alpha" on SKALE Europa Hub');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel request' }));
-    await waitFor(() => expect(hook.state.cancelJoinRequest).toHaveBeenCalledWith('1'));
+    await waitFor(() => expect(hook.state.cancelJoinRequest).toHaveBeenCalledWith('1', 'cluster1'));
     expect(await screen.findByText('Join Request Cancelled')).toBeInTheDocument();
+    await waitFor(() => expect(fulaMock.leavePoolWithChain).toHaveBeenCalledWith(1, 'skale'));
   });
 
   it('shows the error state with Retry when the list failed to load', async () => {

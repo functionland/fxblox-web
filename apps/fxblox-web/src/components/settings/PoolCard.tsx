@@ -54,8 +54,10 @@ export interface PoolCardProps extends Omit<FxCardProps, 'children' | 'onPress'>
   isJoined: boolean;
   numVotes: number;
   numVoters: number;
-  leavePool: (poolID: number) => Promise<void>;
-  cancelJoinPool: (poolID: number) => Promise<void>;
+  /** Resolves true only when the on-chain leave succeeded. */
+  leavePool: (poolID: number) => Promise<boolean>;
+  /** Resolves true only when the on-chain cancel succeeded. */
+  cancelJoinPool: (poolID: number) => Promise<boolean>;
   /** Overrides the default "View details" navigation (`/settings/pools/:poolId`). */
   onViewDetails?: (poolID: string) => void;
   /** Master-detail: this pool is open in the detail column. */
@@ -83,8 +85,10 @@ interface DetailInfoProps {
   isJoined: boolean;
   numVotes: number;
   numVoters: number;
-  leavePool: (poolID: number) => Promise<void>;
-  cancelJoinPool: (poolID: number) => Promise<void>;
+  /** Resolves true only when the on-chain leave succeeded. */
+  leavePool: (poolID: number) => Promise<boolean>;
+  /** Resolves true only when the on-chain cancel succeeded. */
+  cancelJoinPool: (poolID: number) => Promise<boolean>;
 }
 
 function DetailInfo({
@@ -437,14 +441,13 @@ function DetailInfo({
     setJoinState({ ...EMPTY_JOIN_STATE });
   };
 
+  // Keep the persisted join progress when the leave / cancel was declined or failed.
   const handleLeave = async () => {
-    await leavePool(parseInt(pool.poolID, 10));
-    await resetJoinState();
+    if (await leavePool(parseInt(pool.poolID, 10))) await resetJoinState();
   };
 
   const handleCancelRequest = async () => {
-    await cancelJoinPool(parseInt(pool.poolID, 10));
-    await resetJoinState();
+    if (await cancelJoinPool(parseInt(pool.poolID, 10))) await resetJoinState();
   };
 
   const handleForceRejoin = async () => {

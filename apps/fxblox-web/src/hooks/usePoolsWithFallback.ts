@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Ported from apps/box/src/hooks/usePoolsWithFallback.ts. `leavePoolViaAPI` / `cancelJoinRequestViaAPI` REMOVED
-// (no such routes on pools.fx.land); leave/cancel go through the contract (`usePools`).
+// (no such routes on pools.fx.land); leave/cancel are the contract calls spread in from `usePoolOperations`, and
+// callers must pass `currentClusterPeerId` (exposed below) as the peer id.
 import { useState, useEffect, useCallback } from 'react';
 import { usePoolOperations } from './useContractIntegration';
 import type { PoolInfo, UserPoolInfo } from '@/contracts/types';
@@ -183,6 +184,8 @@ export const usePoolsWithFallback = () => {
     ...state,
     ...poolOperations,
     connectedAccount: effectiveAccount || poolOperations.connectedAccount,
+    /** The current Blox's ipfs-cluster peer id — the peer id leave / cancel must be sent with. */
+    currentClusterPeerId,
     loadPools,
     checkUserMembership,
     joinPoolViaAPI,
