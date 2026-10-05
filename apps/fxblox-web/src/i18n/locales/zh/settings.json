@@ -190,7 +190,7 @@
       },
       "bloxNotNotified": {
         "title": "Blox 尚未更新",
-        "message": "矿池变更已在链上完成，但暂时无法通知您的 Blox。它会自行同步。"
+        "message": "矿池变更已在链上完成，但暂时无法通知您的 Blox。它运行最新软件后会自动同步此变更。"
       }
     },
     "poolCard": {
